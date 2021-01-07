@@ -25,8 +25,8 @@ from selenium.webdriver.support import expected_conditions as EC
 # Chaning the working directory to the path where the chromedriver is saved & setting up the chrome driver
 import time
 start_time = time.time()
-get_ipython().run_line_magic('cd', '"C:\\Users\\akshi\\OneDrive\\Desktop\\ISB\\Data Collection\\Assignment"')
-driver = wb.Chrome("C:\\Users\\akshi\\OneDrive\\Desktop\\ISB\\Data Collection\\Assignment\\chromedriver.exe")
+get_ipython().run_line_magic('cd', '"PATH WHERE YOUR CHROMEDRIVER IS SAVED"')
+driver = wb.Chrome("PATH WHERE YOUR CHROMEDRIVER IS SAVED\\chromedriver.exe")
 Skillset = ['Analysis','Python','SQL']
 Skillset = [x.lower() for x in Skillset]
 LL = 15
@@ -38,8 +38,8 @@ role = role.lower().replace(" ","-")
 driver.get("https://www.naukri.com/data-analyst-jobs-in-delhi-ncr?k=data%20analyst&l=delhi%2Fncr")
 driver.find_element_by_xpath('//*[@id="login_Layer"]/div').click()
 time.sleep(5)
-driver.find_element_by_xpath('//*[@id="root"]/div[2]/div[2]/div/form/div[2]/input').send_keys('aksbehera@gmail.com')
-driver.find_element_by_xpath('//*[@id="root"]/div[2]/div[2]/div/form/div[3]/input').send_keys('Sharkbite@1.')
+driver.find_element_by_xpath('//*[@id="root"]/div[2]/div[2]/div/form/div[2]/input').send_keys('YOUR NAUKRI LOGIN')
+driver.find_element_by_xpath('//*[@id="root"]/div[2]/div[2]/div/form/div[3]/input').send_keys('YOUR NAUKRI PASSWORD.')
 time.sleep(5)
 driver.find_element_by_xpath('//*[@id="root"]/div[2]/div[2]/div/form/div[6]/button').click()
 time.sleep(5)
