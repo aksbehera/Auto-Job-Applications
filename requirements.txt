@@ -1,0 +1,6 @@
+anthropic>=0.116.0
+gspread>=6.1.0
+google-auth>=2.30.0
+PyYAML>=6.0
+python-dotenv>=1.0.1
+requests>=2.32.0

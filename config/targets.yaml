@@ -1,0 +1,375 @@
+# ---------------------------------------------------------------------------
+# Job search configuration — AI / Technical Product Manager, India-focused.
+#
+# Everything the pipeline uses to decide *what to look for*, *what to keep*,
+# and *how to rank* lives here. Edit this file, not the Python, to tune the
+# search. Lists are matched case-insensitively against job titles / companies.
+# ---------------------------------------------------------------------------
+
+# How recent a posting must be to count (days). Older roles are dropped.
+recency_days: 14
+# Target number of roles per digest email (quality over firehose).
+max_items_per_digest: 25
+# Re-run the weekly requirements analysis only if this many days have passed
+# since the last one (cadence is tracked in the Sheet's _meta tab).
+weekly_interval_days: 7
+
+# ---------------------------------------------------------------------------
+# THE LANE — role titles we want, ranked by closeness.
+# A role scores on how well its title matches these exemplars.
+# ---------------------------------------------------------------------------
+target_titles:
+  - AI Product Manager
+  - Generative AI Product Manager
+  - GenAI Product Manager
+  - Applied AI Product Manager
+  - AI Product Lead
+  - Technical Product Manager
+  - Technical Product Manager AI
+  - Principal AI Product Manager
+  - Senior AI Product Manager
+  - Group Product Manager AI
+  - Director of AI Product
+  - AI Solutions Engineer
+  - Forward Deployed Engineer
+  - Forward Deployed Solutions Engineer
+  - AI Solutions Architect
+
+# Signal vocabularies used by the rule-based classifier.
+# A role is "in the lane" if it carries a product/solutions signal AND an AI
+# signal (in the title, or AI in the title's company/description).
+pm_terms:
+  - product manager
+  - product management
+  - product lead
+  - product owner
+  - head of product
+  - group product manager
+  - director of product
+  - director, product
+  - vp product
+  - principal product
+  - staff product
+  - product director
+solutions_terms:
+  - solutions engineer
+  - forward deployed
+  - forward-deployed
+  - solutions architect
+  - solution architect
+  - solutions consultant
+ai_terms:
+  - ai
+  - a.i.
+  - genai
+  - gen ai
+  - generative ai
+  - llm
+  - large language model
+  - applied ai
+  - agentic
+  - machine learning   # only counts toward AI signal, never as a PM/SE signal
+  - ml
+
+# ---------------------------------------------------------------------------
+# EXCLUSIONS — drop a role if its title matches any of these, UNLESS it also
+# carries a strong product/solutions signal (handled in classify.py).
+# ---------------------------------------------------------------------------
+exclude_titles:
+  - data scientist
+  - data science
+  - machine learning engineer
+  - ml engineer
+  - mlops
+  - ml ops
+  - deep learning engineer
+  - research scientist
+  - research engineer
+  - software engineer
+  - software development engineer
+  - sde
+  - backend engineer
+  - frontend engineer
+  - full stack
+  - fullstack
+  - data engineer
+  - data analyst
+  - business analyst
+  - product marketing
+  - marketing manager
+  - program manager
+  - programme manager
+  - project manager
+  - delivery manager
+  - scrum master
+  - sales manager
+  - account executive
+  - customer success
+  - designer
+  - ux researcher
+  - intern
+  - internship
+
+# Phrases in the JD body that flag a code/DSA-gated bar (used to down-rank or
+# drop "AI Solutions Engineer / Forward-Deployed" roles that are really SWE).
+code_gate_terms:
+  - data structures and algorithms
+  - leetcode
+  - competitive programming
+  - live coding round
+  - coding round
+  - dsa round
+
+# ---------------------------------------------------------------------------
+# SENIORITY — I'm a manager now; mid → senior / lead / manager level.
+# ---------------------------------------------------------------------------
+senior_terms:
+  - senior
+  - sr.
+  - sr
+  - lead
+  - principal
+  - staff
+  - manager
+  - head
+  - director
+  - group
+  - vp
+  - vice president
+  - ii
+  - iii
+junior_terms:
+  - intern
+  - internship
+  - trainee
+  - graduate
+  - entry level
+  - entry-level
+  - associate
+  - fresher
+  - apprentice
+
+# ---------------------------------------------------------------------------
+# TARGET COMPANIES — results at these surface first; each is tagged with its
+# tier. Non-listed companies that match the filters are still included (this
+# list is for prioritisation, not exclusion).
+# ---------------------------------------------------------------------------
+companies:
+  strong-fit:
+    - Microsoft
+    - Google
+    - ServiceNow
+    - Adobe
+    - Databricks
+    - Atlassian
+    - Sierra
+    - Glean
+    - Writer
+    - Decagon
+    - Perplexity
+    - Cohere
+    - Gong
+    - Clari
+    - Cresta
+    - Observe.ai
+  reach:
+    - OpenAI
+    - Anthropic
+    - Google DeepMind
+    - DeepMind
+    - Mistral
+    - Cognition
+    - Nvidia
+    - NVIDIA
+    - ElevenLabs
+    - Synthesia
+    - HeyGen
+    - Runway
+    - Higgsfield
+  safe:
+    - Amazon
+    - AWS
+    - Uber
+    - SAP
+    - Oracle
+    - Workday
+    - Intuit
+    - GitLab
+    - Booking.com
+    - Booking
+    - Expedia
+
+# ---------------------------------------------------------------------------
+# LOCATIONS — priority order baked into scoring/grouping.
+#   1. Remote (India-eligible / global-remote hiring in India)  — top
+#   2. India on-site / hybrid, any city                         — next
+#   3. International — only if remote-eligible OR a target company
+# ---------------------------------------------------------------------------
+india_terms:
+  - india
+  - bengaluru
+  - bangalore
+  - hyderabad
+  - gurugram
+  - gurgaon
+  - delhi
+  - new delhi
+  - noida
+  - ncr
+  - pune
+  - mumbai
+  - chennai
+  - kolkata
+  - ahmedabad
+remote_terms:
+  - remote
+  - work from home
+  - work-from-home
+  - wfh
+  - anywhere
+  - distributed
+  - fully remote
+  - remote-first
+
+# ---------------------------------------------------------------------------
+# SEARCH QUERIES — fed to each enabled Apify platform (one actor run each).
+# Kept deliberately small to control Apify cost; add more to widen the net.
+# ---------------------------------------------------------------------------
+search_queries:
+  - AI Product Manager
+  - Generative AI Product Manager
+  - Technical Product Manager AI
+  - Applied AI Product Manager
+  - AI Solutions Engineer
+  - Forward Deployed Engineer
+
+# Default location string handed to location-aware actors.
+default_location: India
+
+# ---------------------------------------------------------------------------
+# PLATFORMS — Apify actors, one entry per board.
+#
+# Only LinkedIn + Indeed are enabled by default: their actors are well-known
+# and their output schemas are covered by the default field map, so they work
+# out of the box. The rest are pre-wired but DISABLED — flip `enabled: true`
+# once you've confirmed the actor id + output fields with:
+#     APIFY_TOKEN=... python scripts/test_apify.py <platform> "AI Product Manager"
+# and, if a field shows up MISSING, extend that platform's `fields` map.
+#
+# `input` is the actor run-input; the strings "{query}" and "{location}" are
+# substituted per search query. `fields` maps our canonical columns to the
+# candidate output keys the parser tries in order (platform-specific keys are
+# merged over the global defaults in discovery.py).
+# ---------------------------------------------------------------------------
+platforms:
+  - name: linkedin
+    enabled: true
+    actor: "bebity~linkedin-jobs-scraper"
+    results_per_query: 25
+    input:
+      title: "{query}"
+      location: "{location}"
+      rows: 25
+      publishedAt: "r604800"      # past 7 days (actor-specific; best effort)
+    fields:
+      title: [title, jobTitle, positionName]
+      company: [companyName, company]
+      location: [location, place]
+      url: [jobUrl, link, url]
+      description: [description, descriptionText, descriptionHtml]
+      posted: [postedTime, publishedAt, postedAt, listedAt, datePosted]
+      salary: [salaryInfo, salary]
+      seniority: [seniorityLevel, seniority, experienceLevel]
+
+  - name: indeed
+    enabled: true
+    actor: "misceres~indeed-scraper"
+    results_per_query: 25
+    input:
+      position: "{query}"
+      country: IN
+      location: "{location}"
+      maxItems: 25
+      parseCompanyDetails: false
+    fields:
+      title: [positionName, title]
+      company: [company, companyName]
+      location: [location]
+      url: [url, externalApplyLink]
+      description: [description, descriptionText]
+      posted: [postingDateParsed, postedAt, date]
+      salary: [salary]
+
+  # --- pre-wired, disabled until actor + schema confirmed -------------------
+  - name: naukri
+    enabled: false
+    actor: "memo23~apify-naukri-scraper"       # confirm / replace
+    results_per_query: 25
+    input:
+      keyword: "{query}"
+      location: "{location}"
+      maxItems: 25
+    fields: {}
+
+  - name: foundit
+    enabled: false
+    actor: ""                                   # set an actor id to enable
+    results_per_query: 25
+    input:
+      query: "{query}"
+      location: "{location}"
+    fields: {}
+
+  - name: wellfound
+    enabled: false
+    actor: ""                                   # e.g. an AngelList/Wellfound actor
+    results_per_query: 25
+    input:
+      query: "{query}"
+    fields: {}
+
+  - name: instahyre
+    enabled: false
+    actor: ""
+    results_per_query: 25
+    input:
+      query: "{query}"
+      location: "{location}"
+    fields: {}
+
+  - name: glassdoor
+    enabled: false
+    actor: ""
+    results_per_query: 25
+    input:
+      query: "{query}"
+      location: "{location}"
+    fields: {}
+
+# ---------------------------------------------------------------------------
+# ATS CAREER PAGES — scraped directly from each provider's public JSON API
+# (no Apify, no cost). This is where the AI-native targets post first.
+# `slug` is the company's board identifier in that provider's URL; confirm
+# each one (they vary) — a wrong slug just 404s and is skipped with a note.
+# ---------------------------------------------------------------------------
+ats_boards:
+  greenhouse:
+    - { company: Databricks, slug: databricks }
+    - { company: Gong,       slug: gong }
+    - { company: Glean,      slug: glean }
+    - { company: Writer,     slug: writer }
+    - { company: Clari,      slug: clari }
+    - { company: Cresta,     slug: cresta }
+    - { company: Cohere,     slug: cohere }
+    - { company: Anthropic,  slug: anthropic }
+    - { company: Mistral,    slug: mistralai }
+  lever:
+    - { company: Perplexity, slug: perplexity.ai }
+    - { company: Observe.ai, slug: observeai }
+  ashby:
+    - { company: Sierra,     slug: sierra }
+    - { company: Decagon,    slug: decagon }
+    - { company: OpenAI,     slug: openai }
+    - { company: Runway,     slug: runwayml }
+    - { company: ElevenLabs, slug: elevenlabs }
+    - { company: Cognition,  slug: cognition }

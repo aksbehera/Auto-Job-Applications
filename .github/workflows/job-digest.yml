@@ -1,0 +1,68 @@
+name: AI PM Job Digest
+
+on:
+  schedule:
+    # Every 2 days at 03:30 UTC = 09:00 IST.
+    - cron: "30 3 */2 * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (render only, no Sheet write, no email)"
+        type: boolean
+        default: false
+      no_apify:
+        description: "Skip paid Apify platforms (ATS boards only)"
+        type: boolean
+        default: false
+  # Fire an on-demand real run by committing any change to .github/fire-digest
+  # (e.g. `date > .github/fire-digest && git commit -am fire && git push`).
+  # Ordinary code pushes don't touch that file, so they never send a digest.
+  push:
+    paths:
+      - ".github/fire-digest"
+
+# The Google Sheet is the system of record; nothing is committed back.
+permissions:
+  contents: read
+
+concurrency:
+  group: job-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Run job digest
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          # Optional: override the target Sheet without editing code.
+          JOBS_SHEET_ID: ${{ secrets.JOBS_SHEET_ID }}
+          # Recipients are plain addresses (not secrets) — edit here to change them.
+          DIGEST_RECIPIENT: "aksbehera@gmail.com"
+        run: |
+          FLAGS=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then FLAGS="$FLAGS --dry-run"; fi
+          if [ "${{ inputs.no_apify }}" = "true" ]; then FLAGS="$FLAGS --no-apify"; fi
+          python run_scraper.py $FLAGS
+
+      - name: Upload dry-run output
+        if: ${{ inputs.dry_run == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-html
+          path: out/digest.html
+          if-no-files-found: ignore
