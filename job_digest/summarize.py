@@ -41,8 +41,14 @@ Output the JSON and nothing else."""
 
 
 def _fallback(job: Job) -> None:
-    snippet = " ".join(job.description.split())[:280]
-    job.summary = snippet + ("…" if len(job.description) > 280 else "")
+    if job.description.strip():
+        snippet = " ".join(job.description.split())[:280]
+        job.summary = snippet + ("…" if len(job.description) > 280 else "")
+    else:
+        # Some sources (e.g. Foundit) don't expose the JD text; keep the card useful.
+        loc = f", {job.location}" if job.location else ""
+        job.summary = (f"{job.title} at {job.company}{loc}. "
+                       f"Full description not provided by the source — open the apply link.")
     job.requirements = []
 
 

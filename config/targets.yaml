@@ -241,7 +241,6 @@ search_queries:
   - Technical Product Manager AI
   - Applied AI Product Manager
   - AI Solutions Engineer
-  - Forward Deployed Engineer
 
 # Default location string handed to location-aware actors.
 default_location: India
@@ -262,35 +261,37 @@ default_location: India
 # merged over the global defaults in discovery.py).
 # ---------------------------------------------------------------------------
 platforms:
+  # LinkedIn — best overall coverage incl. target companies. Cookieless actor.
   - name: linkedin
     enabled: true
     actor: "bebity~linkedin-jobs-scraper"
-    results_per_query: 25
     input:
-      title: "{query}"
-      location: "{location}"
-      rows: 25
-      publishedAt: "r604800"      # past 7 days (actor-specific; best effort)
+      titles: ["{query}"]
+      locations: ["{location}"]
+      rows: 12
+      publishedAt: "r604800"        # past 7 days (we run every 2 days)
+      companyProfile: false         # skip company enrichment to limit cost
     fields:
-      title: [title, jobTitle, positionName]
+      title: [title, jobTitle]
       company: [companyName, company]
       location: [location, place]
-      url: [jobUrl, link, url]
+      url: [jobUrl, link, url, applyUrl]
       description: [description, descriptionText, descriptionHtml]
-      posted: [postedTime, publishedAt, postedAt, listedAt, datePosted]
-      salary: [salaryInfo, salary]
-      seniority: [seniorityLevel, seniority, experienceLevel]
+      posted: [publishedAt, postedAt, postedTime, listedAt, datePosted, postedDate]
+      salary: [salary, salaryInfo]
+      seniority: [seniorityLevel, experienceLevel]
 
+  # Indeed India.
   - name: indeed
     enabled: true
     actor: "misceres~indeed-scraper"
-    results_per_query: 25
     input:
       position: "{query}"
       country: IN
       location: "{location}"
-      maxItems: 25
+      maxItemsPerSearch: 12
       parseCompanyDetails: false
+      saveOnlyUniqueItems: true
     fields:
       title: [positionName, title]
       company: [company, companyName]
@@ -300,50 +301,94 @@ platforms:
       posted: [postingDateParsed, postedAt, date]
       salary: [salary]
 
-  # --- pre-wired, disabled until actor + schema confirmed -------------------
+  # Naukri — largest India board. fetchDetails pulls the full JD. The actor nests
+  # each job under "jobDetails", so `root` descends into it before field mapping.
   - name: naukri
-    enabled: false
-    actor: "memo23~apify-naukri-scraper"       # confirm / replace
-    results_per_query: 25
+    enabled: true
+    actor: "muhammetakkurtt~naukri-job-scraper"
+    root: jobDetails
     input:
       keyword: "{query}"
       location: "{location}"
-      maxItems: 25
-    fields: {}
+      maxJobs: 50              # this actor enforces a minimum of 50
+      fetchDetails: true
+      freshness: "15"
+      sortBy: "date"
+    fields:
+      title: [title]
+      company: [companyDetail, staticCompanyName]
+      location: [locations, wfhLabel]
+      url: [staticUrl]
+      description: [description]
+      posted: [createdDate]
+      salary: [salaryDetail]
 
+  # Foundit (Monster India). includeJobDescription pulls the full JD.
   - name: foundit
-    enabled: false
-    actor: ""                                   # set an actor id to enable
-    results_per_query: 25
+    enabled: true
+    actor: "themineworks~foundit-jobs-scraper"
     input:
-      query: "{query}"
+      searchKeywords: ["{query}"]
       location: "{location}"
-    fields: {}
+      postedWithinDays: "15"       # allowed: 1,3,7,15,30
+      maxJobs: 12
+      includeJobDescription: true
+    fields:
+      title: [title]
+      company: [company]
+      location: [location]
+      url: [apply_url]
+      description: [job_description, jobDescription, description]
+      posted: [posted_date_text, posted_date, date]
+      salary: [salary]
 
-  - name: wellfound
-    enabled: false
-    actor: ""                                   # e.g. an AngelList/Wellfound actor
-    results_per_query: 25
-    input:
-      query: "{query}"
-    fields: {}
-
+  # Instahyre (India tech). jobFunctionSlugs cleared so it isn't limited to
+  # backend-development; includeDetails pulls the full JD.
   - name: instahyre
-    enabled: false
-    actor: ""
-    results_per_query: 25
+    enabled: true
+    actor: "getascraper~instahyre-jobs-scraper"
     input:
-      query: "{query}"
-      location: "{location}"
-    fields: {}
+      keywords: ["{query}"]
+      keywordMatch: "any"
+      jobFunctionSlugs: ["product-management"]
+      maxItems: 12
+      includeDetails: true
+    fields:
+      title: [title, candidateTitle]
+      company: [companyName, company]
+      location: [locationsRaw, locations, city]
+      url: [publicUrl, url]
+      description: [description]
+      posted: [postedAt, postedDate, date]
+      salary: [salary]
 
+  # Wellfound (AngelList) — AI-native startups, often global-remote.
+  - name: wellfound
+    enabled: true
+    actor: "memo23~wellfound-jobs-scraper"
+    input:
+      keyword: "{query}"
+      location: "{location}"
+      maxItems: 12
+      enrichJobDetail: true
+      includeNoSalary: true
+    fields:
+      title: [jobTitle, title, role]
+      company: [companyName, company, startupName]
+      location: [locations, locationTags, jobLocationType, location]
+      url: [jobUrl, applyUrl, url]
+      description: [jobDescription, jobDescriptionSnippet, description]
+      posted: [postedAtUnix, postedAt, datePosted, date]
+      salary: [compensation, salary, salaryRange]
+
+  # Glassdoor India — optional, disabled by default (overlaps the others).
   - name: glassdoor
     enabled: false
-    actor: ""
-    results_per_query: 25
+    actor: "bebity~glassdoor-jobs-scraper"
     input:
-      query: "{query}"
+      keyword: "{query}"
       location: "{location}"
+      maxItems: 12
     fields: {}
 
 # ---------------------------------------------------------------------------

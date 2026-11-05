@@ -59,13 +59,29 @@ def _strip_html(raw: str) -> str:
     return text.strip()
 
 
+def _scalar(v) -> str:
+    """Flatten a value to a string: descend dicts (name/label/…) and lists (first)."""
+    if v is None:
+        return ""
+    if isinstance(v, dict):
+        for kk in ("name", "label", "text", "title", "value"):
+            if v.get(kk):
+                return str(v[kk]).strip()
+        return ""
+    if isinstance(v, list):
+        for item in v:
+            s = _scalar(item)
+            if s:
+                return s
+        return ""
+    return str(v).strip()
+
+
 def _first(record: dict, keys: list[str]) -> str:
     for k in keys:
-        v = record.get(k)
-        if isinstance(v, dict):
-            v = v.get("name") or v.get("text") or v.get("value") or ""
-        if v:
-            return str(v).strip()
+        s = _scalar(record.get(k))
+        if s:
+            return s
     return ""
 
 
@@ -134,6 +150,11 @@ def run_actor(token: str, actor: str, run_input: dict) -> list[dict]:
 
 
 def _record_to_job(record: dict, platform: Platform) -> Job | None:
+    # Some actors nest the job under a sub-object (e.g. Naukri's "jobDetails").
+    if platform.root:
+        nested = record.get(platform.root)
+        if isinstance(nested, dict):
+            record = nested
     fields = {k: platform.fields.get(k, []) + DEFAULT_FIELDS[k] for k in DEFAULT_FIELDS}
     title = _first(record, fields["title"])
     company = _first(record, fields["company"])

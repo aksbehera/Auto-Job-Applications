@@ -54,6 +54,7 @@ class Platform:
     results_per_query: int
     input: dict
     fields: dict = field(default_factory=dict)
+    root: str = ""          # sub-object key to descend into before field extraction
 
 
 @dataclass
@@ -88,6 +89,7 @@ def load_settings() -> Settings:
             results_per_query=int(p.get("results_per_query", 25)),
             input=p.get("input", {}) or {},
             fields=p.get("fields", {}) or {},
+            root=p.get("root", "") or "",
         )
         for p in raw.get("platforms", [])
     ]

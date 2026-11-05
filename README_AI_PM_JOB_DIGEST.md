@@ -87,6 +87,21 @@ APIFY_TOKEN=... python scripts/test_apify.py indeed   "AI Product Manager"
 If a field shows up blank/MISSING, add the real output key to that platform's
 `fields` map in `config/targets.yaml`.
 
+**Verified actors (enabled by default):** LinkedIn `bebity~linkedin-jobs-scraper`,
+Indeed `misceres~indeed-scraper`, Naukri `muhammetakkurtt~naukri-job-scraper`,
+Foundit `themineworks~foundit-jobs-scraper`, Instahyre
+`getascraper~instahyre-jobs-scraper`, Wellfound `memo23~wellfound-jobs-scraper`.
+Glassdoor is wired but off. (Foundit returns lead metadata + apply link but not
+the full JD text; the other five return full JDs.)
+
+**Cost control.** Every actor is pay-per-event, so each run costs Apify credits
+and cost scales with `search_queries × platforms × results-per-run`. The defaults
+are modest (5 queries, ~12 results each; Naukri's actor forces a 50 minimum). To
+spend less: trim `search_queries`, lower each platform's `rows`/`maxItems`/`maxJobs`,
+or set `enabled: false` on platforms you don't need. Watch your first few runs on
+the [Apify console](https://console.apify.com/) and dial from there — the ATS
+boards are always free.
+
 ### 4. Claude API (summaries + weekly analysis)
 Set `ANTHROPIC_API_KEY`. Model defaults to `claude-sonnet-4-5` (override with
 `SUMMARY_MODEL`). Costs are small — one short call per *new* role plus one weekly call.

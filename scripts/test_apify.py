@@ -41,10 +41,11 @@ def main() -> int:
         return 1
 
     run_input = discovery._subst(dict(platform.input), query, settings.default_location)
-    # Trim result counts for a cheap probe.
-    for k in ("rows", "maxItems", "total_posts", "maxResults"):
+    # Trim result counts for a cheap probe (some actors enforce a minimum).
+    floor = {"naukri": 50}.get(platform_name, 5)
+    for k in ("rows", "maxItems", "maxItemsPerSearch", "maxJobs", "total_posts", "maxResults"):
         if k in run_input:
-            run_input[k] = 5
+            run_input[k] = floor
 
     print(f"Running actor {platform.actor!r} for {query!r} ...\n")
     records = discovery.run_actor(token, platform.actor, run_input)
