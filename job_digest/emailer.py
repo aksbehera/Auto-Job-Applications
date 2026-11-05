@@ -19,6 +19,13 @@ from .ranking import GROUP_LABELS, GROUP_ORDER, group_jobs
 log = logging.getLogger(__name__)
 
 TIER_COLORS = {"strong-fit": "#0a7d4f", "reach": "#8a5a0a", "safe": "#0a5c8a"}
+SOURCE_LABELS = {
+    "linkedin": "LinkedIn", "indeed": "Indeed", "naukri": "Naukri",
+    "foundit": "Foundit", "instahyre": "Instahyre", "wellfound": "Wellfound",
+    "glassdoor": "Glassdoor", "greenhouse": "Greenhouse", "lever": "Lever",
+    "ashby": "Ashby",
+}
+SOURCE_COLOR = "#64748b"
 GROUP_COLORS = {"target": "#5b4b8a", "remote": "#1a7f7a", "india": "#0a5c8a",
                 "opportunistic": "#8a5a0a"}
 DEFAULT_COLOR = "#334155"
@@ -75,6 +82,8 @@ def _card(i: int, job: Job) -> str:
     meta = " &middot; ".join(meta_bits)
 
     tier_tag = _pill(job.tier, tier_color) if job.tier else ""
+    src_label = SOURCE_LABELS.get(job.source, job.source.title() if job.source else "")
+    source_tag = _pill(f"via {src_label}", SOURCE_COLOR) if src_label else ""
     salary = (f'<span style="color:{MUTED};font-size:12px;"> &middot; {_esc(job.salary)}</span>'
               if job.salary else "")
 
@@ -83,7 +92,7 @@ def _card(i: int, job: Job) -> str:
       <div style="background:{CARD_BG};border:1px solid {LINE};border-left:5px solid {tier_color};
            border-radius:12px;padding:16px 18px;">
         <div style="font-family:{FONT};font-size:12px;color:{MUTED};margin-bottom:6px;">
-          #{i}&nbsp; {tier_tag}
+          #{i}&nbsp; {source_tag} &nbsp;{tier_tag}
         </div>
         <a href="{_esc(job.url)}" style="font-family:{FONT};font-size:17px;font-weight:700;
            color:{INK};text-decoration:none;line-height:1.35;">{_esc(job.title)}</a>
