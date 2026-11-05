@@ -23,7 +23,7 @@ def _recent(ts: float, recency_days: int) -> bool:
     return not (ts and (time.time() - ts) > recency_days * 86400)
 
 
-def _row_to_job(row: dict) -> Job:
+def _row_to_job(row: dict, settings) -> Job:
     posted = str(row.get("Posted date", "")).strip()
     posted_ts = 0.0
     if posted:
@@ -54,9 +54,10 @@ def _row_to_job(row: dict) -> Job:
         summary=str(row.get("Short summary", "")),
         dedupe_key=str(row.get("Dedupe key", "")),
     )
-    job.group = "target" if tier else ("remote" if remote else "india")
     job.requirements = [r.strip() for r in str(row.get("Key requirements/skills", "")).split(";")
                         if r.strip()]
+    # Recompute the group with the same location-first logic used at classify time.
+    job.group = classify.assign_group(job, settings) or "india"
     return job
 
 
@@ -108,7 +109,7 @@ def run(dry_run: bool = False, use_apify: bool = True, use_ats: bool = True,
     unsent = sheet.unsent_rows()
     candidates, row_by_key = [], {}
     for row in unsent:
-        job = _row_to_job(row)
+        job = _row_to_job(row, settings)
         if not _recent(job.posted_ts, settings.recency_days):
             continue
         candidates.append(job)

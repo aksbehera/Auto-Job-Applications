@@ -19,7 +19,8 @@ from .ranking import GROUP_LABELS, GROUP_ORDER, group_jobs
 log = logging.getLogger(__name__)
 
 TIER_COLORS = {"strong-fit": "#0a7d4f", "reach": "#8a5a0a", "safe": "#0a5c8a"}
-GROUP_COLORS = {"target": "#5b4b8a", "remote": "#1a7f7a", "india": "#0a5c8a"}
+GROUP_COLORS = {"target": "#5b4b8a", "remote": "#1a7f7a", "india": "#0a5c8a",
+                "opportunistic": "#8a5a0a"}
 DEFAULT_COLOR = "#334155"
 
 INK = "#1f2933"

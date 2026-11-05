@@ -94,17 +94,44 @@ def _title_closeness(title: str, settings: Settings) -> float:
     return min(best, 1.0)
 
 
+def assign_group(job: Job, settings: Settings) -> str:
+    """Location-first grouping that honours the brief's priority order.
+
+      target        — a target company AND India- or remote-eligible (take it)
+      remote        — remote / India-eligible, non-target
+      india         — India on-site/hybrid, non-target
+      opportunistic — target company but international on-site (lowest priority)
+      ""            — international on-site, non-target → dropped
+
+    A target company abroad no longer outranks a real India/remote AI-PM role.
+    """
+    india = _is_india(job, settings)
+    if job.tier and (india or job.remote):
+        return "target"
+    if job.remote:
+        return "remote"
+    if india:
+        return "india"
+    if job.tier:
+        return "opportunistic"
+    return ""
+
+
 def _score(job: Job, settings: Settings) -> float:
     s = _title_closeness(job.title, settings)          # 0..1 title fit
-    tier_bonus = {"strong-fit": 0.6, "reach": 0.4, "safe": 0.25}.get(job.tier, 0.0)
-    # Location nudge: remote (India-eligible) ranks above India on-site.
-    if job.remote:
-        loc_bonus = 0.25
-    elif _is_india(job, settings):
-        loc_bonus = 0.15
+    t = _norm(job.title)
+    # Prefer true Product Manager roles (the core lane) over solutions-only.
+    if _has(t, settings.pm_terms):
+        s += 0.30
+    elif _has(t, settings.solutions_terms):
+        s += 0.10
+    # Location is the dominant lever: India/remote up, international on-site down.
+    if job.remote or _is_india(job, settings):
+        s += 0.40
     else:
-        loc_bonus = 0.0
-    return round(s + tier_bonus + loc_bonus, 4)
+        s -= 0.15
+    s += {"strong-fit": 0.25, "reach": 0.15, "safe": 0.10}.get(job.tier, 0.0)
+    return round(s, 4)
 
 
 def classify(jobs: list[Job], settings: Settings) -> list[Job]:
@@ -127,7 +154,6 @@ def classify(jobs: list[Job], settings: Settings) -> list[Job]:
         tier = _company_tier(job.company, settings)
         job.tier = tier
         job.remote = _is_remote(job, settings)
-        is_india = _is_india(job, settings)
 
         # Solutions-engineer roles that are really DSA/code-gated SWE → drop
         # unless they're at a target company (keep those, flagged in summary).
@@ -136,18 +162,10 @@ def classify(jobs: list[Job], settings: Settings) -> list[Job]:
             dropped["code_gate"] += 1
             continue
 
-        # Location gate:
-        #   target company        → always keep (opportunistic international ok)
-        #   remote                 → keep (group: remote)
-        #   India on-site/hybrid   → keep (group: india)
-        #   international on-site, non-target, non-remote → drop
-        if tier:
-            job.group = "target"
-        elif job.remote:
-            job.group = "remote"
-        elif is_india:
-            job.group = "india"
-        else:
+        # Location-first grouping (see assign_group). An international on-site,
+        # non-target role returns "" and is dropped.
+        job.group = assign_group(job, settings)
+        if not job.group:
             dropped["location"] += 1
             continue
 

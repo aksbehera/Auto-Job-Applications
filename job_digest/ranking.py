@@ -16,12 +16,16 @@ from .models import Job
 
 log = logging.getLogger(__name__)
 
-GROUP_ORDER = ["target", "remote", "india"]
+GROUP_ORDER = ["target", "remote", "india", "opportunistic"]
 GROUP_LABELS = {
-    "target": "Target-company roles",
+    "target": "Target-company roles (India / remote)",
     "remote": "Remote (India-eligible / global-remote)",
     "india": "India on-site / hybrid",
+    "opportunistic": "Opportunistic — target companies, international",
 }
+
+# No single company may take more than this many slots in one digest.
+PER_COMPANY_CAP = 3
 
 
 def group_jobs(jobs: list[Job]) -> dict[str, list[Job]]:
@@ -54,14 +58,21 @@ def collapse_variants(jobs: list[Job]) -> list[Job]:
 
 
 def select_for_digest(jobs: list[Job], cap: int) -> list[Job]:
-    """Pick up to `cap` distinct roles, prioritising target → remote → india."""
+    """Pick up to `cap` distinct roles, prioritising target → remote → india →
+    opportunistic, with no single company taking more than PER_COMPANY_CAP slots
+    so one employer's bulk postings can't flood the digest."""
     reps = collapse_variants(jobs)
     groups = group_jobs(reps)
     selected: list[Job] = []
+    per_company: dict[str, int] = {}
     for g in GROUP_ORDER:
         for job in groups[g]:
             if len(selected) >= cap:
                 break
+            c = _norm_company(job.company)
+            if per_company.get(c, 0) >= PER_COMPANY_CAP:
+                continue
+            per_company[c] = per_company.get(c, 0) + 1
             selected.append(job)
     log.info("Selected %d distinct roles (from %d postings, %d candidate roles)",
              len(selected), len(jobs), len(reps))
