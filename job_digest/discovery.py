@@ -8,6 +8,7 @@ rather than failing the whole run.
 import datetime as dt
 import html
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -181,6 +182,12 @@ def discover_apify(settings: Settings, result: DiscoveryResult) -> None:
         result.skipped.append("Apify platforms skipped (no APIFY_TOKEN set)")
         return
 
+    # Optional cost cap: JOBS_MAX_QUERIES limits how many search queries run.
+    queries = settings.search_queries
+    cap = os.environ.get("JOBS_MAX_QUERIES", "").strip()
+    if cap.isdigit():
+        queries = queries[: int(cap)]
+
     for platform in settings.platforms:
         if not platform.enabled:
             continue
@@ -190,7 +197,7 @@ def discover_apify(settings: Settings, result: DiscoveryResult) -> None:
 
         found = 0
         failed_queries = 0
-        for query in settings.search_queries:
+        for query in queries:
             run_input = _subst(dict(platform.input), query, settings.default_location)
             try:
                 dataset = run_actor(token, platform.actor, run_input)
@@ -205,7 +212,7 @@ def discover_apify(settings: Settings, result: DiscoveryResult) -> None:
                     found += 1
 
         result.counts[platform.name] = found
-        if failed_queries == len(settings.search_queries) and settings.search_queries:
+        if failed_queries == len(queries) and queries:
             result.skipped.append(f"{platform.name}: all queries failed this run")
         log.info("Apify %s: %d raw jobs", platform.name, found)
 

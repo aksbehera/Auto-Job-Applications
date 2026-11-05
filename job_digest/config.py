@@ -18,7 +18,7 @@ load_dotenv(ROOT / ".env")
 DEFAULT_SHEET_ID = "1mTNmTNJOnaUq-31XfapO36ZSY2CNLZP_7isq3KJTN3A"
 
 # Model used for role summaries + the weekly requirements analysis.
-SUMMARY_MODEL = os.environ.get("SUMMARY_MODEL", "claude-sonnet-4-5")
+SUMMARY_MODEL = os.environ.get("SUMMARY_MODEL", "claude-sonnet-5-5")
 
 # Worksheet names inside the Sheet.
 JOBS_TAB = "Jobs"
