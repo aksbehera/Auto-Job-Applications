@@ -1,25 +1,24 @@
 """End-to-end pipeline:
 
-  discover → classify (lane) → recency → dedupe (in-run) → dedupe (vs Sheet)
-  → summarise new roles → store in Sheet → select digest from unsent rows
-  → (weekly) requirements analysis → email → mark sent.
+  discover → pre-filter (lane + metadata) → recency → dedupe (collapse)
+  → dedupe vs Sheet → LLM match-score → store (Marginal+, drop Low)
+  → rank strictly by score → email (Good+) → mark sent.
 
 The Google Sheet is the system of record and the dedupe memory, so a role is
-never stored twice and never emailed twice.
+never re-scored, re-stored, or re-emailed.
 """
 
 import logging
 import time
 
-from . import classify, dedup, discovery, emailer, ranking, requirements, summarize
-from .config import OUT_DIR, load_settings
+from . import classify, dedup, discovery, emailer, ranking, requirements, scoring
+from .config import OUT_DIR, SEND_THRESHOLD, STORE_THRESHOLD, load_settings
 from .models import Job
 
 log = logging.getLogger(__name__)
 
 
 def _recent(ts: float, recency_days: int) -> bool:
-    """Keep unknown-date roles; drop only those known to be too old."""
     return not (ts and (time.time() - ts) > recency_days * 86400)
 
 
@@ -32,32 +31,30 @@ def _row_to_job(row: dict, settings) -> Job:
         except ValueError:
             posted_ts = 0.0
     try:
-        score = float(row.get("Match score", 0) or 0)
-    except ValueError:
-        score = 0.0
+        score = int(float(row.get("Match score", 0) or 0))
+    except (ValueError, TypeError):
+        score = 0
     tier = str(row.get("Tier", "")).strip()
     tier = "" if tier in ("", "—") else tier
-    remote = str(row.get("Remote?", "")).strip().lower() == "yes"
     job = Job(
         source=str(row.get("Source platform", "")),
         company=str(row.get("Company", "")),
         title=str(row.get("Title", "")),
         location=str(row.get("Location", "")),
         url=str(row.get("Apply URL", "")),
-        description=str(row.get("Full JD", "")),
+        description="",
         posted_ts=posted_ts,
         salary=str(row.get("Salary/comp", "")),
         seniority=str(row.get("Seniority", "")),
-        remote=remote,
+        remote=str(row.get("Remote?", "")).strip().lower() == "yes",
         tier=tier,
-        score=score,
+        match_score=score,
+        band=str(row.get("Band", "")),
         summary=str(row.get("Short summary", "")),
+        fit_reason=str(row.get("Top fit reason", "")),
+        gap_risk=str(row.get("Top gap/risk", "")),
         dedupe_key=str(row.get("Dedupe key", "")),
     )
-    job.requirements = [r.strip() for r in str(row.get("Key requirements/skills", "")).split(";")
-                        if r.strip()]
-    # Recompute the group with the same location-first logic used at classify time.
-    job.group = classify.assign_group(job, settings) or "india"
     return job
 
 
@@ -65,12 +62,10 @@ def run(dry_run: bool = False, use_apify: bool = True, use_ats: bool = True,
         use_llm: bool = True) -> int:
     settings = load_settings()
 
-    # 1. Discover
     disc = discovery.discover(settings, use_apify=use_apify, use_ats=use_ats)
     counts = dict(disc.counts)
     counts["_found"] = len(disc.jobs)
 
-    # 2. Classify to the lane, 3. recency, 4. in-run dedupe
     laned = classify.classify(disc.jobs, settings)
     laned = [j for j in laned if _recent(j.posted_ts, settings.recency_days)]
     deduped = dedup.dedupe_batch(laned)
@@ -78,34 +73,26 @@ def run(dry_run: bool = False, use_apify: bool = True, use_ats: bool = True,
     client = _anthropic_client() if use_llm else None
 
     if dry_run:
-        # No Sheet, no creds needed: summarise + render just this run's finds.
-        if client:
-            summarize.summarize_jobs(client, deduped)
-        else:
-            for j in deduped:
-                summarize._fallback(j)
+        scoring.score_jobs(client, deduped, settings)
         counts["_new"] = len(deduped)
-        selected = ranking.select_for_digest(deduped, settings.max_items_per_digest)
+        selected = ranking.select_for_email(deduped, settings.max_items_per_digest, SEND_THRESHOLD)
         counts["_sent"] = len(selected)
         _write_dry(selected, "", disc.skipped, counts)
         return len(selected)
 
-    # 5. Dedupe vs the Sheet (the memory), 6. summarise only genuinely new roles
     from .sheet import JobSheet
     sheet = JobSheet()
     known = sheet.existing_keys()
     new_jobs = dedup.filter_known(deduped, known)
-    counts["_new"] = len(new_jobs)
 
     if new_jobs:
-        if client:
-            summarize.summarize_jobs(client, new_jobs)
-        else:
-            for j in new_jobs:
-                summarize._fallback(j)
-        sheet.append_jobs(new_jobs)
+        scoring.score_jobs(client, new_jobs, settings)
+    to_store = [j for j in new_jobs if j.match_score >= STORE_THRESHOLD]   # drop Low
+    counts["_new"] = len(to_store)
+    if to_store:
+        sheet.append_jobs(to_store)
 
-    # 7. Build the digest from ALL unsent rows (new + any leftovers), ranked/capped.
+    # Build the digest from all unsent rows (new + leftovers), ranked by score.
     unsent = sheet.unsent_rows()
     candidates, row_by_key = [], {}
     for row in unsent:
@@ -115,28 +102,20 @@ def run(dry_run: bool = False, use_apify: bool = True, use_ats: bool = True,
         candidates.append(job)
         if job.dedupe_key:
             row_by_key[job.dedupe_key] = row["_row"]
-    selected = ranking.select_for_digest(candidates, settings.max_items_per_digest)
+    selected = ranking.select_for_email(candidates, settings.max_items_per_digest, SEND_THRESHOLD)
     counts["_sent"] = len(selected)
 
-    # 8. Weekly requirements analysis (cadence tracked in the Sheet _meta tab)
     analysis = _maybe_weekly(sheet, client, settings)
 
     if not selected and not analysis:
-        log.info("Nothing new to send and no weekly analysis due — no email.")
+        log.info("Nothing above the send bar and no weekly analysis due — no email.")
         return 0
 
     html_body = emailer.render_html(selected, analysis, disc.skipped, counts)
-    subject = _subject(len(selected), bool(analysis))
-    emailer.send(html_body, subject)
+    emailer.send(html_body, _subject(len(selected), bool(analysis)))
 
-    # 9. Mark the selected rows — and every collapsed location-variant — as sent,
-    #    so the same role never resurfaces in a later digest.
-    sent_rows = []
-    for job in selected:
-        for key in (job.variant_keys or [job.dedupe_key]):
-            if key in row_by_key:
-                sent_rows.append(row_by_key[key])
-    sheet.mark_sent(sorted(set(sent_rows)))
+    sent_rows = sorted({row_by_key[j.dedupe_key] for j in selected if j.dedupe_key in row_by_key})
+    sheet.mark_sent(sent_rows)
     if analysis:
         sheet.meta_set("last_weekly_analysis", time.strftime("%Y-%m-%d"))
 
@@ -173,7 +152,5 @@ def _subject(n: int, weekly: bool) -> str:
 
 def _write_dry(selected, analysis, notes, counts) -> None:
     OUT_DIR.mkdir(exist_ok=True)
-    html_body = emailer.render_html(selected, analysis, notes, counts)
-    out_path = OUT_DIR / "digest.html"
-    out_path.write_text(html_body)
-    log.info("Dry run: wrote %s (no Sheet write, no email)", out_path)
+    (OUT_DIR / "digest.html").write_text(emailer.render_html(selected, analysis, notes, counts))
+    log.info("Dry run: wrote %s (no Sheet write, no email)", OUT_DIR / "digest.html")

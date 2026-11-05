@@ -1,8 +1,9 @@
-"""De-duplication by company + normalized title + location.
+"""De-duplication by company + normalized title (location-independent).
 
-Within a run we collapse the same role seen on multiple platforms (keeping the
-best source link); across runs the Google Sheet is the memory — any role whose
-key is already stored is dropped so it's never re-added or re-sent.
+Collapsing is location-free on purpose: the same role posted across several
+cities is one opportunity, and a location-free identity means the Google Sheet's
+memory recognises it next run even if only a different city's posting shows up —
+so a role is never re-scored, re-stored, or re-sent.
 """
 
 import hashlib
@@ -24,8 +25,8 @@ SOURCE_RANK = {
 _SENIORITY_NOISE = re.compile(
     r"\b(senior|sr|junior|jr|lead|principal|staff|i{1,3}|1|2|3|iv)\b", re.I)
 
-# Geographic tokens used to recognise (and strip) a trailing "- <Location>"
-# suffix, so the same role posted per-country collapses to one line.
+# Geographic tokens used to strip a trailing "- <Location>" suffix so the same
+# role posted per-city/country collapses to one identity.
 _GEO = {
     "remote", "hybrid", "onsite", "on", "site",
     "india", "bengaluru", "bangalore", "hyderabad", "gurugram", "gurgaon",
@@ -42,13 +43,12 @@ _GEO = {
 
 
 def _strip_geo_suffix(title: str) -> str:
-    """Drop a trailing dash/comma segment that is purely a location."""
-    for _ in range(3):   # handle "Role - AI Agent - UK - Remote"
+    for _ in range(3):
         m = re.search(r"\s[-–—,]\s*([^-–—,]+)$", title)
         if not m:
             break
-        tail_tokens = re.findall(r"[a-z0-9.]+", m.group(1).lower())
-        if tail_tokens and all(tok in _GEO for tok in tail_tokens):
+        tail = re.findall(r"[a-z0-9.]+", m.group(1).lower())
+        if tail and all(tok in _GEO for tok in tail):
             title = title[: m.start()]
         else:
             break
@@ -56,9 +56,8 @@ def _strip_geo_suffix(title: str) -> str:
 
 
 def _norm_title(title: str) -> str:
-    t = _strip_geo_suffix(title)
-    t = t.lower()
-    t = re.sub(r"\(.*?\)", " ", t)              # drop parentheticals
+    t = _strip_geo_suffix(title).lower()
+    t = re.sub(r"\(.*?\)", " ", t)
     t = _SENIORITY_NOISE.sub(" ", t)
     t = re.sub(r"[^a-z0-9 ]", " ", t)
     return re.sub(r"\s+", " ", t).strip()
@@ -72,42 +71,34 @@ def _norm_company(company: str) -> str:
     return re.sub(r"\s+", " ", c).strip()
 
 
-def _norm_location(location: str) -> str:
-    loc = location.lower()
-    # Collapse to a coarse bucket: remote, or the first city/region token.
-    if re.search(r"remote|anywhere|work from home|wfh", loc):
-        return "remote"
-    loc = re.sub(r"[^a-z0-9 ]", " ", loc)
-    tokens = [t for t in loc.split() if t not in ("india", "in")]
-    return tokens[0] if tokens else "na"
-
-
 def compute_key(job: Job) -> str:
-    raw = f"{_norm_company(job.company)}|{_norm_title(job.title)}|{_norm_location(job.location)}"
+    raw = f"{_norm_company(job.company)}|{_norm_title(job.title)}"
     return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
 
 def dedupe_batch(jobs: list[Job]) -> list[Job]:
-    """Collapse same-role duplicates within this run, keeping the best source."""
+    """Collapse same-role duplicates (across platforms and locations) to one
+    representative — best source, longest JD — recording how many merged."""
     best: dict[str, Job] = {}
     for job in jobs:
         job.dedupe_key = compute_key(job)
-        current = best.get(job.dedupe_key)
-        if current is None:
+        cur = best.get(job.dedupe_key)
+        if cur is None:
+            job.variant_count = 1
             best[job.dedupe_key] = job
             continue
-        # Prefer the better source; tie-break on longer JD.
-        better = (SOURCE_RANK.get(job.source, 99), -len(job.description))
-        incumbent = (SOURCE_RANK.get(current.source, 99), -len(current.description))
-        if better < incumbent:
+        cur.variant_count += 1
+        rank_new = (SOURCE_RANK.get(job.source, 99), -len(job.description))
+        rank_cur = (SOURCE_RANK.get(cur.source, 99), -len(cur.description))
+        if rank_new < rank_cur:
+            job.variant_count = cur.variant_count
             best[job.dedupe_key] = job
     collapsed = list(best.values())
-    log.info("Dedupe (in-run): %d → %d", len(jobs), len(collapsed))
+    log.info("Dedupe: %d postings → %d distinct roles", len(jobs), len(collapsed))
     return collapsed
 
 
 def filter_known(jobs: list[Job], known_keys: set[str]) -> list[Job]:
-    """Drop roles already stored in the Sheet."""
     fresh = [j for j in jobs if j.dedupe_key not in known_keys]
     log.info("Dedupe (vs Sheet): %d new of %d", len(fresh), len(jobs))
     return fresh

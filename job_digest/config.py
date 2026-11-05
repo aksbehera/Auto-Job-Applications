@@ -24,6 +24,11 @@ SUMMARY_MODEL = os.environ.get("SUMMARY_MODEL", "claude-sonnet-5-5")
 JOBS_TAB = "Jobs"
 META_TAB = "_meta"
 
+# Match-score delivery thresholds and band cutoffs (0–100 fit score).
+SEND_THRESHOLD = 65        # email roles scoring at/above this (Good and Strong)
+STORE_THRESHOLD = 45       # store Marginal+ in the Sheet; drop Low entirely
+BANDS = [(80, "Strong"), (65, "Good"), (45, "Marginal"), (0, "Low")]
+
 # Column order for the Jobs worksheet (the system of record).
 COLUMNS = [
     "Date added",
@@ -36,12 +41,22 @@ COLUMNS = [
     "Posted date",
     "Seniority",
     "Salary/comp",
+    "Match score",
+    "Band",
+    "Top fit reason",
+    "Top gap/risk",
     "Short summary",
-    "Full JD",
     "Key requirements/skills",
+    "Full JD",
     "Apply URL",
     "Sent in digest?",
-    "Match score",
+    "Role-type",        # the six sub-scores (0–1), stored for transparency/tuning
+    "Domain",
+    "Seniority score",
+    "Company score",
+    "Location score",
+    "Feasibility",
+    "Rationale",
     "Dedupe key",
 ]
 

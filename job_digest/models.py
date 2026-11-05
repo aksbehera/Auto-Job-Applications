@@ -21,9 +21,16 @@ class Job:
     group: str = ""             # "target" | "remote" | "india"
     score: float = 0.0
 
-    # Derived by summarize.py
+    # Derived by scoring.py
     summary: str = ""
     requirements: list[str] = field(default_factory=list)
+    match_score: int = 0                       # 0–100 overall fit
+    band: str = ""                             # Strong | Good | Marginal | Low
+    subscores: dict = field(default_factory=dict)   # the 6 weighted dimensions (0–1)
+    rationale: str = ""                        # one-line "why this score"
+    fit_reason: str = ""                       # single biggest fit reason
+    gap_risk: str = ""                         # single biggest gap or risk
+    exclude_tag: str = ""                      # set when a hard gate fires
 
     dedupe_key: str = ""
 

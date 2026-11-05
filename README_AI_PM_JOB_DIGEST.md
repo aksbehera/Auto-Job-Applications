@@ -18,23 +18,37 @@ and no employer is contacted.
 ## How it works
 
 ```
-discover            Apify actors (LinkedIn, Indeed, …) + ATS pages (Greenhouse/Lever/Ashby)
-  → classify        rule-based: keep the lane, drop noise, tag tier/remote/seniority/group
+discover            Apify actors (LinkedIn, Indeed, …) + ATS pages (Greenhouse/Ashby)
+  → pre-filter      cheap keyword lane + tag tier/remote/seniority (keeps the candidate set small)
   → recency         drop anything older than 14 days
-  → dedupe (run)    collapse the same role seen on several platforms (best source wins)
+  → dedupe (run)    collapse the same role (company+title, location-independent); best source wins
   → dedupe (Sheet)  drop roles already stored — the Sheet is the memory
-  → summarise       Claude writes a 2–3 sentence summary + parses key requirements (new roles only)
-  → store           append every new role as a row in the Google Sheet
-  → select          rank + group → Target-company, then Remote, then India on-site/hybrid (cap 25)
+  → SCORE           Claude reads each JD and returns a 0–100 fit score + 6 sub-scores,
+                    a summary, requirements, the biggest fit reason and gap/risk (new roles only)
+  → store           append roles scoring ≥45 (Marginal+) to the Sheet; drop Low
+  → rank            strictly by match score, highest first — best fits lead, wherever they are
   → analyse         weekly: aggregate all JDs → common skills, bands, gaps vs your profile
-  → email           one grouped HTML digest via Gmail SMTP; mark those roles "sent"
+  → email           roles scoring ≥65 (Good & Strong), one ranked HTML digest via Gmail SMTP
 ```
 
-**The lane** (what it keeps), **exclusions**, **target companies + tiers**,
-**locations**, **search queries** and **platforms** are all defined in
-[`config/targets.yaml`](config/targets.yaml) — edit that, not the Python, to tune
-the search. Your profile keywords for the gap analysis live in
-[`config/profile.md`](config/profile.md).
+**The lane**, **target companies + tiers**, **locations**, **search queries**,
+**platforms** and **ATS boards** are defined in
+[`config/targets.yaml`](config/targets.yaml). Your candidate profile — which the
+scorer judges every JD against — is [`config/profile.md`](config/profile.md); keep
+it accurate, it's the heart of the match score.
+
+## The match score
+
+Every role gets a **0–100 fit score** from an LLM that reads the full JD against
+your profile — judging the *kind* of role by its must-haves, not its title. Six
+weighted dimensions: **role-type (30)**, domain (20), seniority (15), company (15),
+location (15), feasibility (5). Three hard gates cap the result: a code-gated /
+ML-eng / data-architect / non-AI-PM role is capped at 15 and tagged
+`excluded-role-type`; an international on-site role with no India path at a
+non-target company is capped at 25; an unmet hard must-have is capped at 30 (with
+the blocker named). Bands: **Strong 80+ · Good 65–79 · Marginal 45–64 · Low <45**.
+The digest emails Good-and-above, ranked by score; Marginal stays in the Sheet;
+Low is dropped. Tune thresholds in `job_digest/config.py`.
 
 ## The Google Sheet (system of record)
 
@@ -43,10 +57,12 @@ All roles are stored in one Sheet — this is where you browse, filter and read 
 > https://docs.google.com/spreadsheets/d/1mTNmTNJOnaUq-31XfapO36ZSY2CNLZP_7isq3KJTN3A/edit
 
 Columns: `Date added · Source platform · Company · Tier · Title · Location ·
-Remote? · Posted date · Seniority · Salary/comp · Short summary · Full JD ·
-Key requirements/skills · Apply URL · Sent in digest? · Match score · Dedupe key`.
-A hidden `_meta` tab tracks the weekly-analysis cadence. The email links here and
-only summarises; full JDs stay in the Sheet.
+Remote? · Posted date · Seniority · Salary/comp · Match score · Band ·
+Top fit reason · Top gap/risk · Short summary · Key requirements/skills · Full JD ·
+Apply URL · Sent in digest? · Role-type · Domain · Seniority score · Company score ·
+Location score · Feasibility · Rationale · Dedupe key` (the six sub-scores are kept
+for transparency and tuning). A hidden `_meta` tab tracks the weekly-analysis
+cadence. The email links here and only summarises; full JDs stay in the Sheet.
 
 ## Setup
 
@@ -93,6 +109,12 @@ Foundit `themineworks~foundit-jobs-scraper`, Instahyre
 `getascraper~instahyre-jobs-scraper`, Wellfound `memo23~wellfound-jobs-scraper`.
 Glassdoor is wired but off. (Foundit returns lead metadata + apply link but not
 the full JD text; the other five return full JDs.)
+
+**ATS boards (free, no Apify):** all verified live — Greenhouse for Databricks,
+Anthropic, Glean (`gleanwork`), Gong (`gongio`), Observe.ai (`observeai`), Cresta;
+Ashby for Sierra, Decagon, OpenAI, ElevenLabs, Cognition, Writer, Cohere, Mistral
+(`mistral.ai`), Runway (`runway-ml`), Perplexity. Clari has no public board (its
+careers page redirects off-domain), so it's covered only via LinkedIn/Naukri.
 
 **Cost control.** Every actor is pay-per-event, so each run costs Apify credits
 and cost scales with `search_queries × platforms × results-per-run`. The defaults

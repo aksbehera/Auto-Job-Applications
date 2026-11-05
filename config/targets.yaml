@@ -400,21 +400,22 @@ platforms:
 ats_boards:
   greenhouse:
     - { company: Databricks, slug: databricks }
-    - { company: Gong,       slug: gong }
-    - { company: Glean,      slug: glean }
-    - { company: Writer,     slug: writer }
-    - { company: Clari,      slug: clari }
-    - { company: Cresta,     slug: cresta }
-    - { company: Cohere,     slug: cohere }
     - { company: Anthropic,  slug: anthropic }
-    - { company: Mistral,    slug: mistralai }
-  lever:
-    - { company: Perplexity, slug: perplexity.ai }
+    - { company: Glean,      slug: gleanwork }
+    - { company: Gong,       slug: gongio }
     - { company: Observe.ai, slug: observeai }
+    - { company: Cresta,     slug: cresta }
   ashby:
     - { company: Sierra,     slug: sierra }
     - { company: Decagon,    slug: decagon }
     - { company: OpenAI,     slug: openai }
-    - { company: Runway,     slug: runwayml }
     - { company: ElevenLabs, slug: elevenlabs }
     - { company: Cognition,  slug: cognition }
+    - { company: Writer,     slug: writer }
+    - { company: Cohere,     slug: cohere }
+    - { company: Mistral,    slug: mistral.ai }
+    - { company: Runway,     slug: runway-ml }
+    - { company: Perplexity, slug: perplexity }
+  lever: []
+  # Clari omitted: its careers page redirects off-domain and exposes no public
+  # Greenhouse/Lever/Ashby board. It'll still be caught via LinkedIn/Naukri.

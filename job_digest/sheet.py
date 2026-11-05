@@ -83,6 +83,8 @@ class JobSheet:
         today = time.strftime("%Y-%m-%d")
         rows = []
         for j in jobs:
+            s = j.subscores or {}
+            sv = lambda k: (f"{float(s.get(k, 0)):.2f}" if s.get(k) is not None else "")
             rows.append([
                 today,
                 j.source,
@@ -94,12 +96,22 @@ class JobSheet:
                 _posted_str(j.posted_ts),
                 j.seniority,
                 j.salary,
+                j.match_score,
+                j.band,
+                j.fit_reason,
+                j.gap_risk,
                 j.summary,
-                j.description[:MAX_CELL_CHARS],
                 "; ".join(j.requirements),
+                j.description[:MAX_CELL_CHARS],
                 j.url,
                 "N",
-                f"{j.score:.3f}",
+                sv("role_type"),
+                sv("domain"),
+                sv("seniority"),
+                sv("company"),
+                sv("location"),
+                sv("feasibility"),
+                j.rationale,
                 j.dedupe_key,
             ])
         self.jobs.append_rows(rows, value_input_option="RAW")
