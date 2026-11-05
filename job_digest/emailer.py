@@ -72,6 +72,10 @@ def _card(i: int, job: Job) -> str:
         tags.append(_pill(f"via {src}", SOURCE_COLOR))
     if job.tier:
         tags.append(_pill(job.tier, TIER_COLORS.get(job.tier, MUTED), solid=False))
+    if not job.takeable:
+        tags.append(_pill("relocation + visa", "#9a3412", solid=False))
+    if job.provisional:
+        tags.append(_pill("provisional JD", MUTED, solid=False))
     tag_row = " &nbsp;".join(tags)
 
     meta_bits = [_esc(job.company)]
@@ -147,15 +151,31 @@ def _footer(notes: list[str], counts: dict) -> str:
             f'line-height:1.6;text-align:center;">{"<br>".join(lines)}</td></tr>')
 
 
-def render_html(selected: list[Job], analysis: str, notes: list[str], counts: dict) -> str:
+def _section_header(text: str, color: str) -> str:
+    return (f'<tr><td style="padding:12px 0 12px 0;"><div style="font-family:{FONT};font-size:13px;'
+            f'font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:{color};'
+            f'border-bottom:2px solid {color};padding-bottom:6px;">{text}</div></td></tr>')
+
+
+def render_html(takeable: list[Job], aspirational: list[Job], analysis: str,
+                notes: list[str], counts: dict) -> str:
     date_str = time.strftime("%A, %d %B %Y")
-    strong = sum(1 for j in selected if j.band == "Strong")
-    good = sum(1 for j in selected if j.band == "Good")
-    cards = "".join(_card(i, j) for i, j in enumerate(selected, 1))
-    if not selected:
-        cards = (f'<tr><td style="font-family:{FONT};color:{MUTED};padding:20px;">'
-                 f'No roles cleared the match-score bar this run.</td></tr>')
-    sub = f"{strong} Strong &middot; {good} Good" if selected else ""
+    strong = sum(1 for j in takeable if j.band == "Strong")
+    good = sum(1 for j in takeable if j.band == "Good")
+
+    body = ""
+    if takeable:
+        body += "".join(_card(i, j) for i, j in enumerate(takeable, 1))
+    else:
+        body += (f'<tr><td style="font-family:{FONT};color:{MUTED};padding:16px;">'
+                 f'No takeable roles cleared the bar this run.</td></tr>')
+    if aspirational:
+        body += _section_header(
+            "Strong fits, but need relocation + visa &mdash; not actionable now", "#9a3412")
+        body += "".join(_card(i, j) for i, j in enumerate(aspirational, len(takeable) + 1))
+    body += _analysis_block(analysis)
+
+    sub = f"{strong} Strong &middot; {good} Good" if takeable else ""
 
     return f"""<!-- AI PM Job Digest -->
 <div style="background:{PAGE_BG};margin:0;padding:24px 12px;font-family:{FONT};">
@@ -167,22 +187,21 @@ def render_html(selected: list[Job], analysis: str, notes: list[str], counts: di
       <div style="font-family:{FONT};font-size:12px;letter-spacing:2px;text-transform:uppercase;
            color:#d7d0ea;font-weight:600;">AI PM Job Digest &middot; India</div>
       <div style="font-family:{SERIF};font-size:25px;color:#fff;font-weight:700;margin-top:6px;">
-        {len(selected)} role{'s' if len(selected) != 1 else ''} worth your time</div>
+        {len(takeable)} role{'s' if len(takeable) != 1 else ''} you can act on now</div>
       <div style="font-family:{FONT};font-size:13px;color:#e4dcf2;margin-top:8px;">{date_str}{' &middot; ' + sub if sub else ''}</div>
     </td></tr>
 
     <tr><td style="background:#fff;border-left:1px solid {LINE};border-right:1px solid {LINE};
         border-bottom:1px solid {LINE};border-radius:0 0 14px 14px;padding:14px 26px;
         font-family:{FONT};font-size:13px;color:{INK};">
-      Ranked by a 0&ndash;100 match score against your profile &mdash; best fits first, wherever they are.
-      Full job descriptions and every score detail are in your
-      <a href="{sheet_url()}" style="color:#5b4b8a;font-weight:600;">Google Sheet</a>.
+      Ranked by a 0&ndash;100 fit score on the full JD. The shortlist is takeable from India now;
+      strong roles that need relocation + a visa are parked at the bottom. Full JDs and every
+      score detail are in your <a href="{sheet_url()}" style="color:#5b4b8a;font-weight:600;">Google Sheet</a>.
     </td></tr>
 
     <tr><td style="padding:16px 0 0 0;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-        {cards}
-        {_analysis_block(analysis)}
+        {body}
       </table>
     </td></tr>
 

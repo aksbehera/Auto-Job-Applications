@@ -1,8 +1,8 @@
 """End-to-end pipeline:
 
   discover → pre-filter (lane + metadata) → recency → dedupe (collapse)
-  → dedupe vs Sheet → LLM match-score → store (Marginal+, drop Low)
-  → rank strictly by score → email (Good+) → mark sent.
+  → dedupe vs Sheet → LLM match-score (full JD) → store (Marginal+, drop Low)
+  → split takeable shortlist vs aspirational international → email → mark sent.
 
 The Google Sheet is the system of record and the dedupe memory, so a role is
 never re-scored, re-stored, or re-emailed.
@@ -12,14 +12,24 @@ import logging
 import time
 
 from . import classify, dedup, discovery, emailer, ranking, requirements, scoring
-from .config import OUT_DIR, SEND_THRESHOLD, STORE_THRESHOLD, load_settings
+from .config import (ASPIRATIONAL_THRESHOLD, OUT_DIR, SEND_THRESHOLD,
+                     STORE_THRESHOLD, load_settings)
 from .models import Job
 
 log = logging.getLogger(__name__)
 
+ASPIRATIONAL_CAP = 8   # how many not-takeable "strong on paper" roles to park at the bottom
+
 
 def _recent(ts: float, recency_days: int) -> bool:
     return not (ts and (time.time() - ts) > recency_days * 86400)
+
+
+def _int(v) -> int:
+    try:
+        return int(float(v or 0))
+    except (ValueError, TypeError):
+        return 0
 
 
 def _row_to_job(row: dict, settings) -> Job:
@@ -30,13 +40,12 @@ def _row_to_job(row: dict, settings) -> Job:
             posted_ts = time.mktime(time.strptime(posted, "%Y-%m-%d"))
         except ValueError:
             posted_ts = 0.0
-    try:
-        score = int(float(row.get("Match score", 0) or 0))
-    except (ValueError, TypeError):
-        score = 0
     tier = str(row.get("Tier", "")).strip()
     tier = "" if tier in ("", "—") else tier
-    job = Job(
+    band_cell = str(row.get("Band", "")).strip()
+    provisional = "provisional" in band_cell.lower()
+    band = band_cell.split("·")[0].strip()
+    return Job(
         source=str(row.get("Source platform", "")),
         company=str(row.get("Company", "")),
         title=str(row.get("Title", "")),
@@ -48,14 +57,22 @@ def _row_to_job(row: dict, settings) -> Job:
         seniority=str(row.get("Seniority", "")),
         remote=str(row.get("Remote?", "")).strip().lower() == "yes",
         tier=tier,
-        match_score=score,
-        band=str(row.get("Band", "")),
+        match_score=_int(row.get("Match score")),
+        raw_score=_int(row.get("Raw score")),
+        band=band,
+        takeable=str(row.get("Takeable", "Yes")).strip().lower() != "no",
+        provisional=provisional,
         summary=str(row.get("Short summary", "")),
         fit_reason=str(row.get("Top fit reason", "")),
         gap_risk=str(row.get("Top gap/risk", "")),
         dedupe_key=str(row.get("Dedupe key", "")),
     )
-    return job
+
+
+def _select(candidates, settings):
+    takeable = ranking.select_takeable(candidates, settings.max_items_per_digest, SEND_THRESHOLD)
+    aspirational = ranking.select_aspirational(candidates, ASPIRATIONAL_CAP, ASPIRATIONAL_THRESHOLD)
+    return takeable, aspirational
 
 
 def run(dry_run: bool = False, use_apify: bool = True, use_ats: bool = True,
@@ -75,10 +92,10 @@ def run(dry_run: bool = False, use_apify: bool = True, use_ats: bool = True,
     if dry_run:
         scoring.score_jobs(client, deduped, settings)
         counts["_new"] = len(deduped)
-        selected = ranking.select_for_email(deduped, settings.max_items_per_digest, SEND_THRESHOLD)
-        counts["_sent"] = len(selected)
-        _write_dry(selected, "", disc.skipped, counts)
-        return len(selected)
+        takeable, aspirational = _select(deduped, settings)
+        counts["_sent"] = len(takeable) + len(aspirational)
+        _write_dry(takeable, aspirational, "", disc.skipped, counts)
+        return len(takeable) + len(aspirational)
 
     from .sheet import JobSheet
     sheet = JobSheet()
@@ -92,7 +109,6 @@ def run(dry_run: bool = False, use_apify: bool = True, use_ats: bool = True,
     if to_store:
         sheet.append_jobs(to_store)
 
-    # Build the digest from all unsent rows (new + leftovers), ranked by score.
     unsent = sheet.unsent_rows()
     candidates, row_by_key = [], {}
     for row in unsent:
@@ -102,7 +118,8 @@ def run(dry_run: bool = False, use_apify: bool = True, use_ats: bool = True,
         candidates.append(job)
         if job.dedupe_key:
             row_by_key[job.dedupe_key] = row["_row"]
-    selected = ranking.select_for_email(candidates, settings.max_items_per_digest, SEND_THRESHOLD)
+    takeable, aspirational = _select(candidates, settings)
+    selected = takeable + aspirational
     counts["_sent"] = len(selected)
 
     analysis = _maybe_weekly(sheet, client, settings)
@@ -111,15 +128,16 @@ def run(dry_run: bool = False, use_apify: bool = True, use_ats: bool = True,
         log.info("Nothing above the send bar and no weekly analysis due — no email.")
         return 0
 
-    html_body = emailer.render_html(selected, analysis, disc.skipped, counts)
-    emailer.send(html_body, _subject(len(selected), bool(analysis)))
+    html_body = emailer.render_html(takeable, aspirational, analysis, disc.skipped, counts)
+    emailer.send(html_body, _subject(len(takeable), len(aspirational), bool(analysis)))
 
     sent_rows = sorted({row_by_key[j.dedupe_key] for j in selected if j.dedupe_key in row_by_key})
     sheet.mark_sent(sent_rows)
     if analysis:
         sheet.meta_set("last_weekly_analysis", time.strftime("%Y-%m-%d"))
 
-    log.info("Done: found=%d new=%d sent=%d", counts["_found"], counts["_new"], counts["_sent"])
+    log.info("Done: found=%d new=%d sent=%d (takeable=%d aspirational=%d)",
+             counts["_found"], counts["_new"], counts["_sent"], len(takeable), len(aspirational))
     return len(selected)
 
 
@@ -145,12 +163,14 @@ def _maybe_weekly(sheet, client, settings) -> str:
     return requirements.analyse(client, sheet.all_jobs())
 
 
-def _subject(n: int, weekly: bool) -> str:
-    base = f"AI PM Job Digest — {time.strftime('%d %b %Y')} ({n} role{'s' if n != 1 else ''})"
+def _subject(n_take: int, n_asp: int, weekly: bool) -> str:
+    base = f"AI PM Job Digest — {time.strftime('%d %b %Y')} ({n_take} actionable"
+    base += f" + {n_asp} aspirational)" if n_asp else ")"
     return base + " + weekly analysis" if weekly else base
 
 
-def _write_dry(selected, analysis, notes, counts) -> None:
+def _write_dry(takeable, aspirational, analysis, notes, counts) -> None:
     OUT_DIR.mkdir(exist_ok=True)
-    (OUT_DIR / "digest.html").write_text(emailer.render_html(selected, analysis, notes, counts))
+    (OUT_DIR / "digest.html").write_text(
+        emailer.render_html(takeable, aspirational, analysis, notes, counts))
     log.info("Dry run: wrote %s (no Sheet write, no email)", OUT_DIR / "digest.html")

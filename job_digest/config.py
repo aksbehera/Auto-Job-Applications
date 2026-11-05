@@ -25,9 +25,12 @@ JOBS_TAB = "Jobs"
 META_TAB = "_meta"
 
 # Match-score delivery thresholds and band cutoffs (0–100 fit score).
-SEND_THRESHOLD = 65        # email roles scoring at/above this (Good and Strong)
-STORE_THRESHOLD = 45       # store Marginal+ in the Sheet; drop Low entirely
-BANDS = [(80, "Strong"), (65, "Good"), (45, "Marginal"), (0, "Low")]
+# Strong additionally requires takeability from India (enforced via the cap in
+# scoring.py, which keeps a not-takeable role out of the Strong band).
+SEND_THRESHOLD = 70        # email takeable roles scoring at/above this (Good+)
+STORE_THRESHOLD = 55       # store Marginal+ in the Sheet; drop Low entirely
+ASPIRATIONAL_THRESHOLD = 70  # show not-takeable roles whose UNCAPPED fit is this high
+BANDS = [(85, "Strong"), (70, "Good"), (55, "Marginal"), (0, "Low")]
 
 # Column order for the Jobs worksheet (the system of record).
 COLUMNS = [
@@ -43,6 +46,8 @@ COLUMNS = [
     "Salary/comp",
     "Match score",
     "Band",
+    "Takeable",
+    "Raw score",
     "Top fit reason",
     "Top gap/risk",
     "Short summary",

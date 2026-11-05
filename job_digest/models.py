@@ -24,8 +24,11 @@ class Job:
     # Derived by scoring.py
     summary: str = ""
     requirements: list[str] = field(default_factory=list)
-    match_score: int = 0                       # 0–100 overall fit
+    match_score: int = 0                       # 0–100 overall fit (after caps)
+    raw_score: int = 0                         # uncapped weighted fit (for aspirational ranking)
     band: str = ""                             # Strong | Good | Marginal | Low
+    takeable: bool = True                      # takeable from India now (India or remote-India-eligible)
+    provisional: bool = False                  # scored on a partial/absent JD
     subscores: dict = field(default_factory=dict)   # the 6 weighted dimensions (0–1)
     rationale: str = ""                        # one-line "why this score"
     fit_reason: str = ""                       # single biggest fit reason

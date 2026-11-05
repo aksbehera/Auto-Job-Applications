@@ -25,10 +25,10 @@ discover            Apify actors (LinkedIn, Indeed, …) + ATS pages (Greenhouse
   → dedupe (Sheet)  drop roles already stored — the Sheet is the memory
   → SCORE           Claude reads each JD and returns a 0–100 fit score + 6 sub-scores,
                     a summary, requirements, the biggest fit reason and gap/risk (new roles only)
-  → store           append roles scoring ≥45 (Marginal+) to the Sheet; drop Low
-  → rank            strictly by match score, highest first — best fits lead, wherever they are
+  → store           append roles scoring ≥55 (Marginal+) to the Sheet; drop Low
+  → rank            strictly by match score; split takeable shortlist vs aspirational (relocation+visa)
   → analyse         weekly: aggregate all JDs → common skills, bands, gaps vs your profile
-  → email           roles scoring ≥65 (Good & Strong), one ranked HTML digest via Gmail SMTP
+  → email           takeable roles ≥70 up top, aspirational international parked below; HTML via Gmail SMTP
 ```
 
 **The lane**, **target companies + tiers**, **locations**, **search queries**,
@@ -39,16 +39,28 @@ it accurate, it's the heart of the match score.
 
 ## The match score
 
-Every role gets a **0–100 fit score** from an LLM that reads the full JD against
-your profile — judging the *kind* of role by its must-haves, not its title. Six
-weighted dimensions: **role-type (30)**, domain (20), seniority (15), company (15),
-location (15), feasibility (5). Three hard gates cap the result: a code-gated /
-ML-eng / data-architect / non-AI-PM role is capped at 15 and tagged
-`excluded-role-type`; an international on-site role with no India path at a
-non-target company is capped at 25; an unmet hard must-have is capped at 30 (with
-the blocker named). Bands: **Strong 80+ · Good 65–79 · Marginal 45–64 · Low <45**.
-The digest emails Good-and-above, ranked by score; Marginal stays in the Sheet;
-Low is dropped. Tune thresholds in `job_digest/config.py`.
+Every role gets a **0–100 fit score** from an LLM that reads the **full JD**
+against your profile — judging the *kind* of role by its must-haves, not its
+title. Six weighted dimensions: **role-type (30)**, domain (20), seniority (15),
+company (15), location (15), feasibility (5). Seniority and company also carry
+the level/comp signal (a role scoped PM I/II or at an IT-services delivery shop
+scores down even with perfect AI fit).
+
+**Takeability is decisive.** Each role is judged *takeable from India now* (India
+located, or remote and India-eligible) or not (international on-site,
+US-state-locked, or US-only "remote" with no stated India hiring/visa). A
+not-takeable role is capped at 60 so it **can never read as Strong** — company
+prestige doesn't change takeability — and is tagged `relocation + visa required`.
+
+Hard caps: code-gated / ML-eng / data-architect / non-AI-PM → 15
+(`excluded-role-type`); unmet hard must-have → 30 (blocker named); not takeable →
+60. Bands: **Strong 85+ (and takeable) · Good 70–84 · Marginal 55–69 · Low <55**.
+
+The email has two parts: the **actionable shortlist** (takeable, score ≥70,
+ranked) and, parked at the bottom, **aspirational** international roles (not
+takeable but strong on paper, uncapped fit ≥70). Marginal stays in the Sheet;
+Low is dropped. A role scored on a partial/absent JD is tagged `provisional`.
+Tune thresholds in `job_digest/config.py`.
 
 ## The Google Sheet (system of record)
 
