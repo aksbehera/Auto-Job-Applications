@@ -1,0 +1,349 @@
+# ---------------------------------------------------------------------------
+# Job search configuration — Sales / Revenue leadership, India-focused.
+# Edit this file, not the Python, to tune the search.
+# ---------------------------------------------------------------------------
+
+# --- Profile identity (per person; keeps this search fully separate) ---------
+sheet_id: "1weoLH0-AF1QDCWF5pvEuxb_WK3ulA_4BmPsoC5CU1MQ"
+digest_recipient: "deepanshibajpai2@gmail.com"
+digest_title: "Sales Job Digest"
+scoring_system: >-
+  You are a sharp sales recruiter scoring commercial / revenue roles for one
+  specific candidate. Judge TRUE fit by reading the job description's must-have
+  requirements, never by the title alone — a sales-sounding title can still be a
+  misfit, and a non-sales title can own revenue. Takeability from India is
+  decisive: a role she cannot physically take from India now must never score like
+  one she can. Be decisive and honest. Return only JSON.
+
+# Her lane is sales/revenue, which carries no "AI" style domain gate — any
+# sales/BD-titled role passes the cheap pre-filter and the LLM judges real fit.
+require_domain_signal: false
+
+recency_days: 14
+max_items_per_digest: 25
+weekly_interval_days: 7
+
+# ---------------------------------------------------------------------------
+# THE LANE — role signals (title must carry one of these to reach scoring).
+# ---------------------------------------------------------------------------
+pm_terms:
+  - sales manager
+  - sales lead
+  - sales head
+  - head of sales
+  - sales director
+  - director of sales
+  - vp sales
+  - vp of sales
+  - business development
+  - bd manager
+  - bdm
+  - inside sales
+  - field sales
+  - regional sales
+  - area sales
+  - territory sales
+  - zonal sales
+  - national sales
+  - revenue manager
+  - revenue lead
+  - head of revenue
+  - growth manager
+  - sales strategy
+  - account manager
+  - key account
+  - enterprise account
+  - account director
+  - strategic partnerships
+  - partnerships manager
+  - partnerships lead
+  - admissions manager
+  - admissions lead
+  - enrollment
+  - enrolment
+  - student recruitment
+  - counselling manager
+  - counseling manager
+  - commercial manager
+  - commercial lead
+solutions_terms:
+  - account executive
+  - relationship manager
+  - customer success manager
+  - client relationship
+  - client partner
+
+# No AI/domain keyword gate for this lane.
+ai_terms: []
+# STRONG_AI_DESC is only consulted when require_domain_signal is true.
+
+# For documentation only (the LLM scorer enforces exclusions by reading the JD):
+exclude_titles:
+  - software engineer
+  - developer
+  - data scientist
+  - data analyst
+  - product manager
+  - product marketing
+  - brand manager
+  - performance marketing
+  - digital marketing
+  - seo
+  - content
+  - program manager
+  - project manager
+  - operations manager
+  - hr
+  - recruiter
+  - talent acquisition
+  - telecaller
+  - telecalling
+  - bpo voice process
+  - intern
+code_gate_terms: []
+
+# ---------------------------------------------------------------------------
+# SENIORITY — ~9 years, Senior Manager leading a 15-person team.
+# ---------------------------------------------------------------------------
+senior_terms:
+  - senior
+  - sr.
+  - sr
+  - lead
+  - principal
+  - manager
+  - head
+  - director
+  - avp
+  - vp
+  - vice president
+  - group
+senior_level_floor: senior manager
+junior_terms:
+  - intern
+  - internship
+  - trainee
+  - graduate
+  - entry level
+  - entry-level
+  - fresher
+  - apprentice
+  - associate trainee
+  - management trainee
+
+# ---------------------------------------------------------------------------
+# TARGET COMPANIES — edtech, consumer-tech and SaaS/growth (sectors she named).
+# A positive signal for the company dimension; not an exclusion.
+# ---------------------------------------------------------------------------
+companies:
+  strong-fit:
+    - upGrad
+    - Scaler
+    - Physics Wallah
+    - PhysicsWallah
+    - Unacademy
+    - Vedantu
+    - Great Learning
+    - Emeritus
+    - Eruditus
+    - Simplilearn
+    - Classplus
+    - LEAD
+    - Masai School
+    - Newton School
+    - Coursera
+    - Udemy
+  reach:
+    - Razorpay
+    - Zomato
+    - Swiggy
+    - Meesho
+    - CRED
+    - Groww
+    - Zerodha
+    - PhonePe
+    - Paytm
+    - Nykaa
+    - Lenskart
+    - Freshworks
+    - Zoho
+    - Salesforce
+    - HubSpot
+    - BrowserStack
+    - Postman
+    - Chargebee
+  safe:
+    - Amazon
+    - Flipkart
+    - BYJU'S
+    - Byju's
+    - Info Edge
+    - Naukri
+    - PolicyBazaar
+    - NoBroker
+    - Concentrix
+    - Teleperformance
+
+# ---------------------------------------------------------------------------
+# LOCATIONS — Gurugram / Delhi NCR based; India on-site/hybrid or India-remote.
+# ---------------------------------------------------------------------------
+india_terms:
+  - india
+  - gurugram
+  - gurgaon
+  - delhi
+  - new delhi
+  - noida
+  - ncr
+  - bengaluru
+  - bangalore
+  - hyderabad
+  - pune
+  - mumbai
+  - chennai
+  - kolkata
+  - ahmedabad
+remote_terms:
+  - remote
+  - work from home
+  - work-from-home
+  - wfh
+  - anywhere
+  - distributed
+  - fully remote
+  - remote-first
+
+# ---------------------------------------------------------------------------
+# SEARCH QUERIES — fed to each enabled Apify platform (one actor run each).
+# ---------------------------------------------------------------------------
+search_queries:
+  - Sales Manager
+  - Business Development Manager
+  - Senior Sales Manager
+  - Inside Sales Manager
+  - Key Account Manager
+  - Admissions Manager
+
+default_location: India
+
+# ---------------------------------------------------------------------------
+# PLATFORMS — same verified Apify actors as the other profile. Sales roles are
+# high-volume on LinkedIn/Naukri/Indeed/Foundit, so Instahyre (tech-skewed) and
+# Glassdoor are off by default. Field maps are platform-generic.
+# ---------------------------------------------------------------------------
+platforms:
+  - name: linkedin
+    enabled: true
+    actor: "bebity~linkedin-jobs-scraper"
+    input:
+      titles: ["{query}"]
+      locations: ["{location}"]
+      rows: 12
+      publishedAt: "r604800"
+      companyProfile: false
+    fields:
+      title: [title, jobTitle]
+      company: [companyName, company]
+      location: [location, place]
+      url: [jobUrl, link, url, applyUrl]
+      description: [description, descriptionText, descriptionHtml]
+      posted: [publishedAt, postedAt, postedTime, listedAt, datePosted, postedDate]
+      salary: [salary, salaryInfo]
+      seniority: [seniorityLevel, experienceLevel]
+
+  - name: indeed
+    enabled: true
+    actor: "misceres~indeed-scraper"
+    input:
+      position: "{query}"
+      country: IN
+      location: "{location}"
+      maxItemsPerSearch: 12
+      parseCompanyDetails: false
+      saveOnlyUniqueItems: true
+    fields:
+      title: [positionName, title]
+      company: [company, companyName]
+      location: [location]
+      url: [url, externalApplyLink]
+      description: [description, descriptionText]
+      posted: [postingDateParsed, postedAt, date]
+      salary: [salary]
+
+  - name: naukri
+    enabled: true
+    actor: "muhammetakkurtt~naukri-job-scraper"
+    root: jobDetails
+    input:
+      keyword: "{query}"
+      location: "{location}"
+      maxJobs: 50
+      fetchDetails: true
+      freshness: "15"
+      sortBy: "date"
+    fields:
+      title: [title]
+      company: [companyDetail, staticCompanyName]
+      location: [locations, wfhLabel]
+      url: [staticUrl]
+      description: [description]
+      posted: [createdDate]
+      salary: [salaryDetail]
+
+  - name: foundit
+    enabled: true
+    actor: "themineworks~foundit-jobs-scraper"
+    input:
+      searchKeywords: ["{query}"]
+      location: "{location}"
+      postedWithinDays: "15"
+      maxJobs: 12
+      includeJobDescription: true
+    fields:
+      title: [title]
+      company: [company]
+      location: [location]
+      url: [apply_url]
+      description: [job_description, jobDescription, description]
+      posted: [posted_date_text, posted_date, date]
+      salary: [salary]
+
+  - name: wellfound
+    enabled: true
+    actor: "memo23~wellfound-jobs-scraper"
+    input:
+      keyword: "{query}"
+      location: "{location}"
+      maxItems: 12
+      enrichJobDetail: true
+      includeNoSalary: true
+    fields:
+      title: [jobTitle, title, role]
+      company: [companyName, company, startupName]
+      location: [locations, locationTags, jobLocationType, location]
+      url: [jobUrl, applyUrl, url]
+      description: [jobDescription, jobDescriptionSnippet, description]
+      posted: [postedAtUnix, postedAt, datePosted, date]
+      salary: [compensation, salary, salaryRange]
+
+  - name: instahyre
+    enabled: false
+    actor: "getascraper~instahyre-jobs-scraper"
+    input:
+      keywords: ["{query}"]
+      keywordMatch: "any"
+      jobFunctionSlugs: ["sales"]     # confirm the real slug before enabling
+      maxItems: 12
+      includeDetails: true
+    fields:
+      title: [title, candidateTitle]
+      company: [companyName, company]
+      location: [locationsRaw, locations, city]
+      url: [publicUrl, url]
+      description: [description]
+      posted: [postedAt, postedDate, date]
+      salary: [salary]
+
+# No ATS boards for this lane yet (India sales roles concentrate on the job
+# boards above). Add Greenhouse/Lever/Ashby slugs here if useful later.
+ats_boards: {}

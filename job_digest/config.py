@@ -1,4 +1,11 @@
-"""Configuration: env vars, the targets.yaml search spec, and the profile."""
+"""Configuration: env vars + a per-person profile (search spec, sheet, rubric).
+
+Each person is a profile directory under profiles/<name>/ holding targets.yaml
+(the search spec + identity), profile.md (the candidate profile) and rubric.md
+(the LLM scoring rubric). The active profile is chosen by --profile / JOB_PROFILE,
+so two people's searches stay completely separate: separate config, separate
+Google Sheet, separate recipient.
+"""
 
 import os
 from dataclasses import dataclass, field
@@ -8,61 +15,33 @@ import yaml
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
-CONFIG_DIR = ROOT / "config"
+PROFILES_DIR = ROOT / "profiles"
 OUT_DIR = ROOT / "out"
+DEFAULT_PROFILE = "akshit"
 
 load_dotenv(ROOT / ".env")
 
-# The Google Sheet that is the single system of record + dedupe memory.
-# Overridable via env; defaults to the sheet created during setup.
-DEFAULT_SHEET_ID = "1mTNmTNJOnaUq-31XfapO36ZSY2CNLZP_7isq3KJTN3A"
-
-# Model used for role summaries + the weekly requirements analysis.
+# Model used for scoring + the weekly requirements analysis.
 SUMMARY_MODEL = os.environ.get("SUMMARY_MODEL", "claude-sonnet-5-5")
 
-# Worksheet names inside the Sheet.
+# Worksheet names inside each Sheet.
 JOBS_TAB = "Jobs"
 META_TAB = "_meta"
 
 # Match-score delivery thresholds and band cutoffs (0–100 fit score).
-# Strong additionally requires takeability from India (enforced via the cap in
-# scoring.py, which keeps a not-takeable role out of the Strong band).
-SEND_THRESHOLD = 70        # email takeable roles scoring at/above this (Good+)
-STORE_THRESHOLD = 55       # store Marginal+ in the Sheet; drop Low entirely
+SEND_THRESHOLD = 70          # email takeable roles scoring at/above this (Good+)
+STORE_THRESHOLD = 55         # store Marginal+ in the Sheet; drop Low entirely
 ASPIRATIONAL_THRESHOLD = 70  # show not-takeable roles whose UNCAPPED fit is this high
 BANDS = [(85, "Strong"), (70, "Good"), (55, "Marginal"), (0, "Low")]
 
 # Column order for the Jobs worksheet (the system of record).
 COLUMNS = [
-    "Date added",
-    "Source platform",
-    "Company",
-    "Tier",
-    "Title",
-    "Location",
-    "Remote?",
-    "Posted date",
-    "Seniority",
-    "Salary/comp",
-    "Match score",
-    "Band",
-    "Takeable",
-    "Raw score",
-    "Top fit reason",
-    "Top gap/risk",
-    "Short summary",
-    "Key requirements/skills",
-    "Full JD",
-    "Apply URL",
-    "Sent in digest?",
-    "Role-type",        # the six sub-scores (0–1), stored for transparency/tuning
-    "Domain",
-    "Seniority score",
-    "Company score",
-    "Location score",
-    "Feasibility",
-    "Rationale",
-    "Dedupe key",
+    "Date added", "Source platform", "Company", "Tier", "Title", "Location",
+    "Remote?", "Posted date", "Seniority", "Salary/comp", "Match score", "Band",
+    "Takeable", "Raw score", "Top fit reason", "Top gap/risk", "Short summary",
+    "Key requirements/skills", "Full JD", "Apply URL", "Sent in digest?",
+    "Role-type", "Domain", "Seniority score", "Company score", "Location score",
+    "Feasibility", "Rationale", "Dedupe key",
 ]
 
 
@@ -74,14 +53,21 @@ class Platform:
     results_per_query: int
     input: dict
     fields: dict = field(default_factory=dict)
-    root: str = ""          # sub-object key to descend into before field extraction
+    root: str = ""
 
 
 @dataclass
 class Settings:
+    profile: str
+    sheet_id: str
+    digest_recipient: str
+    digest_title: str
+    scoring_system: str
+    scoring_rubric: str
     recency_days: int
     max_items_per_digest: int
     weekly_interval_days: int
+    require_domain_signal: bool   # pre-filter needs a domain cue in the title/JD (e.g. "AI")
     default_location: str
     search_queries: list[str]
     target_titles: list[str]
@@ -94,59 +80,75 @@ class Settings:
     junior_terms: list[str]
     india_terms: list[str]
     remote_terms: list[str]
-    companies: dict          # tier -> [names]
+    companies: dict
     platforms: list[Platform]
-    ats_boards: dict         # provider -> [{company, slug}]
+    ats_boards: dict
+
+    @property
+    def sheet_url(self) -> str:
+        return f"https://docs.google.com/spreadsheets/d/{self.sheet_id}/edit"
 
 
-def load_settings() -> Settings:
-    raw = yaml.safe_load((CONFIG_DIR / "targets.yaml").read_text())
+def _profile_dir(profile: str) -> Path:
+    return PROFILES_DIR / profile
+
+
+def resolve_profile(profile: str | None = None) -> str:
+    return profile or os.environ.get("JOB_PROFILE", "").strip() or DEFAULT_PROFILE
+
+
+def load_settings(profile: str | None = None) -> Settings:
+    profile = resolve_profile(profile)
+    pdir = _profile_dir(profile)
+    path = pdir / "targets.yaml"
+    if not path.exists():
+        raise SystemExit(f"Unknown profile {profile!r}: {path} not found. "
+                         f"Available: {[p.name for p in PROFILES_DIR.iterdir() if p.is_dir()]}")
+    raw = yaml.safe_load(path.read_text())
     platforms = [
         Platform(
-            name=p["name"],
-            enabled=bool(p.get("enabled", False)),
-            actor=p.get("actor", ""),
-            results_per_query=int(p.get("results_per_query", 25)),
-            input=p.get("input", {}) or {},
-            fields=p.get("fields", {}) or {},
+            name=p["name"], enabled=bool(p.get("enabled", False)),
+            actor=p.get("actor", ""), results_per_query=int(p.get("results_per_query", 25)),
+            input=p.get("input", {}) or {}, fields=p.get("fields", {}) or {},
             root=p.get("root", "") or "",
         )
         for p in raw.get("platforms", [])
     ]
+    rubric_path = pdir / "rubric.md"
+    scoring_rubric = rubric_path.read_text().strip() if rubric_path.exists() else ""
+    lower = lambda key: [t.lower() for t in raw.get(key, [])]
     return Settings(
+        profile=profile,
+        sheet_id=str(raw.get("sheet_id", "")),
+        digest_recipient=str(raw.get("digest_recipient", "")),
+        digest_title=str(raw.get("digest_title", "Job Digest")),
+        scoring_system=str(raw.get("scoring_system", "")).strip(),
+        scoring_rubric=scoring_rubric,
         recency_days=int(raw.get("recency_days", 14)),
         max_items_per_digest=int(raw.get("max_items_per_digest", 25)),
         weekly_interval_days=int(raw.get("weekly_interval_days", 7)),
+        require_domain_signal=bool(raw.get("require_domain_signal", True)),
         default_location=raw.get("default_location", "India"),
         search_queries=raw.get("search_queries", []),
         target_titles=raw.get("target_titles", []),
-        pm_terms=[t.lower() for t in raw.get("pm_terms", [])],
-        solutions_terms=[t.lower() for t in raw.get("solutions_terms", [])],
-        ai_terms=[t.lower() for t in raw.get("ai_terms", [])],
-        exclude_titles=[t.lower() for t in raw.get("exclude_titles", [])],
-        code_gate_terms=[t.lower() for t in raw.get("code_gate_terms", [])],
-        senior_terms=[t.lower() for t in raw.get("senior_terms", [])],
-        junior_terms=[t.lower() for t in raw.get("junior_terms", [])],
-        india_terms=[t.lower() for t in raw.get("india_terms", [])],
-        remote_terms=[t.lower() for t in raw.get("remote_terms", [])],
+        pm_terms=lower("pm_terms"),
+        solutions_terms=lower("solutions_terms"),
+        ai_terms=lower("ai_terms"),
+        exclude_titles=lower("exclude_titles"),
+        code_gate_terms=lower("code_gate_terms"),
+        senior_terms=lower("senior_terms"),
+        junior_terms=lower("junior_terms"),
+        india_terms=lower("india_terms"),
+        remote_terms=lower("remote_terms"),
         companies={tier: list(names) for tier, names in raw.get("companies", {}).items()},
         platforms=platforms,
         ats_boards=raw.get("ats_boards", {}) or {},
     )
 
 
-def load_profile() -> str:
-    path = CONFIG_DIR / "profile.md"
+def load_profile(profile: str | None = None) -> str:
+    path = _profile_dir(resolve_profile(profile)) / "profile.md"
     return path.read_text().strip() if path.exists() else ""
-
-
-def sheet_id() -> str:
-    # An unset *or empty* env var (e.g. an undefined GitHub secret) falls back.
-    return os.environ.get("JOBS_SHEET_ID", "").strip() or DEFAULT_SHEET_ID
-
-
-def sheet_url() -> str:
-    return f"https://docs.google.com/spreadsheets/d/{sheet_id()}/edit"
 
 
 def env(name: str, required: bool = False) -> str:

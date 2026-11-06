@@ -1,19 +1,36 @@
-# AI PM Job Digest — India
+# Job Digest — India
 
-A recurring, private job-search pipeline for AI / Technical Product Manager roles.
-It discovers live openings across India-relevant platforms via **Apify** (plus
-AI-native companies' **ATS career pages**), de-dupes them, stores every role —
-full job description included — in a **Google Sheet**, and emails a **curated,
-grouped digest every two days**. Once a week it adds a **requirements analysis**
-across all stored JDs.
+A recurring, private job-search pipeline. It discovers live openings across
+India-relevant platforms via **Apify** (plus **ATS career pages**), de-dupes them,
+scores each one 0–100 for fit against a specific person's profile, stores every
+role — full JD included — in a **Google Sheet**, and emails a **ranked digest
+every two days**. Once a week it adds a **requirements analysis** across all
+stored JDs.
 
-Everything is private: discovery is read-only scraping, the Sheet is yours, and
-the only output is an email to your own inbox. Nothing is ever posted anywhere,
-and no employer is contacted.
+Everything is private: discovery is read-only scraping, each Sheet is yours, and
+the only output is an email to the owner's own inbox. Nothing is ever posted
+anywhere, and no employer is contacted.
 
-> This system lives entirely in `job_digest/`, `config/`, `scripts/`,
-> `run_scraper.py` and `.github/workflows/job-digest.yml`. It does **not** touch
-> the legacy `Auto Job Application on Naukri_Github.ipynb` notebook at the repo root.
+## Two profiles (separate people, one codebase)
+
+The pipeline runs **per profile**, and each person is fully separate — own search
+lane, own scoring rubric, own Google Sheet, own recipient:
+
+| Profile | Lane | Sheet recipient |
+|---|---|---|
+| `akshit` | AI / Technical Product Manager | aksbehera@gmail.com |
+| `deepanshi` | Sales / revenue leadership (conversions) | deepanshibajpai2@gmail.com |
+
+A profile is a folder `profiles/<name>/` with `targets.yaml` (search spec +
+identity: `sheet_id`, `digest_recipient`, `digest_title`), `profile.md` (the
+candidate profile the scorer judges against) and `rubric.md` (the per-dimension
+scoring rubric). Pick one with `--profile <name>` or `JOB_PROFILE=<name>`
+(defaults to `akshit`). **To add a third person**, copy a `profiles/<name>/`
+folder, point it at a new Sheet, and add the name to the workflow matrix.
+
+> This system lives in `job_digest/`, `profiles/`, `scripts/`, `run_scraper.py`
+> and `.github/workflows/job-digest.yml`. It does **not** touch the legacy
+> `Auto Job Application on Naukri_Github.ipynb` notebook at the repo root.
 
 ## How it works
 
@@ -32,10 +49,11 @@ discover            Apify actors (LinkedIn, Indeed, …) + ATS pages (Greenhouse
 ```
 
 **The lane**, **target companies + tiers**, **locations**, **search queries**,
-**platforms** and **ATS boards** are defined in
-[`config/targets.yaml`](config/targets.yaml). Your candidate profile — which the
-scorer judges every JD against — is [`config/profile.md`](config/profile.md); keep
-it accurate, it's the heart of the match score.
+**platforms** and **ATS boards** are defined per profile in
+`profiles/<name>/targets.yaml`. The candidate profile — which the scorer judges
+every JD against — is `profiles/<name>/profile.md`, and the scoring rubric is
+`profiles/<name>/rubric.md`; keep the profile accurate, it's the heart of the
+match score.
 
 ## The match score
 
@@ -62,11 +80,13 @@ takeable but strong on paper, uncapped fit ≥70). Marginal stays in the Sheet;
 Low is dropped. A role scored on a partial/absent JD is tagged `provisional`.
 Tune thresholds in `job_digest/config.py`.
 
-## The Google Sheet (system of record)
+## The Google Sheets (system of record — one per person)
 
-All roles are stored in one Sheet — this is where you browse, filter and read full JDs:
+Each profile stores its roles in its own Sheet — where you browse, filter and read
+full JDs:
 
-> https://docs.google.com/spreadsheets/d/1mTNmTNJOnaUq-31XfapO36ZSY2CNLZP_7isq3KJTN3A/edit
+> **akshit:** https://docs.google.com/spreadsheets/d/1mTNmTNJOnaUq-31XfapO36ZSY2CNLZP_7isq3KJTN3A/edit
+> **deepanshi:** https://docs.google.com/spreadsheets/d/1weoLH0-AF1QDCWF5pvEuxb_WK3ulA_4BmPsoC5CU1MQ/edit
 
 Columns: `Date added · Source platform · Company · Tier · Title · Location ·
 Remote? · Posted date · Seniority · Salary/comp · Match score · Band ·
@@ -143,26 +163,32 @@ Set `ANTHROPIC_API_KEY`. Model defaults to `claude-sonnet-4-5` (override with
 ### 5. Gmail (sending the digest)
 On the sender Google account (with 2-Step Verification on), create an
 [app password](https://myaccount.google.com/apppasswords). Set `GMAIL_ADDRESS`
-and `GMAIL_APP_PASSWORD`. `DIGEST_RECIPIENT` defaults to `aksbehera@gmail.com`.
+and `GMAIL_APP_PASSWORD`. Each profile's recipient is set in its own
+`targets.yaml` (`digest_recipient`), so one sender can email two people.
+
+One service account, one Apify token, one Claude key and one Gmail sender are
+**shared across both profiles**; only the Sheet and recipient differ per person.
+**Share each Sheet with the service-account email** (both Sheets, Editor).
 
 ## Running
 
 ```bash
-python run_scraper.py                 # full run: discover, store, email
-python run_scraper.py --dry-run       # render out/digest.html; no Sheet write, no email
-python run_scraper.py --no-apify      # ATS career pages only (free; skip paid actors)
-python run_scraper.py --no-ats        # Apify platforms only
-python run_scraper.py --no-llm        # skip summaries/analysis (fallback text)
+python run_scraper.py --profile akshit              # full run for one person
+python run_scraper.py --profile deepanshi
+python run_scraper.py --profile akshit --dry-run    # render out/digest_<profile>.html; no Sheet, no email
+python run_scraper.py --profile akshit --no-apify   # ATS career pages only (free; skip paid actors)
+python run_scraper.py --profile akshit --no-llm     # skip scoring/analysis (fallback text)
 ```
 
 A dry run needs **no credentials** (it skips the Sheet and renders this run's finds
-to `out/digest.html`) — the quickest way to preview the email.
+to `out/digest_<profile>.html`) — the quickest way to preview the email.
 
 ## Scheduling (GitHub Actions)
 
-[`.github/workflows/job-digest.yml`](.github/workflows/job-digest.yml) runs **every
-2 days at 03:30 UTC (09:00 IST)**. Add these **Actions secrets** (Settings →
-Secrets and variables → Actions):
+[`.github/workflows/job-digest.yml`](.github/workflows/job-digest.yml) runs a
+**matrix over both profiles every 2 days at 03:30 UTC (09:00 IST)** — each person
+gets their own run and their own email. Add these **Actions secrets** (Settings →
+Secrets and variables → Actions), all shared across profiles:
 
 | Secret | What |
 |---|---|
@@ -171,16 +197,12 @@ Secrets and variables → Actions):
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | the full service-account JSON |
 | `GMAIL_ADDRESS` | sender Gmail address |
 | `GMAIL_APP_PASSWORD` | Gmail app password |
-| `JOBS_SHEET_ID` | *(optional)* override the target Sheet |
 
-Recipients are set in the workflow's `DIGEST_RECIPIENT` env (plain addresses,
-comma-separated — not a secret). You can also:
-- **Run on demand:** Actions → *AI PM Job Digest* → *Run workflow* (with an optional
-  dry-run / no-Apify toggle), **or** commit any change to `.github/fire-digest`
-  (`date > .github/fire-digest && git commit -am fire && git push`). Ordinary code
-  pushes never send a digest.
-
-The Sheet is the system of record, so the workflow commits nothing back.
+Sheet ids and recipients live in each `profiles/<name>/targets.yaml` (not secrets).
+You can also **run on demand:** Actions → *Job Digest* → *Run workflow* (choose a
+profile — both/akshit/deepanshi — and an optional dry-run), **or** commit any
+change to `.github/fire-digest` to fire both. Ordinary code pushes never send a
+digest. Each Sheet is the system of record, so the workflow commits nothing back.
 
 ## Tuning
 

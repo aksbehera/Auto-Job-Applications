@@ -13,7 +13,7 @@ import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from .config import env, sheet_url
+from .config import env
 from .models import Job
 
 log = logging.getLogger(__name__)
@@ -135,7 +135,7 @@ def _analysis_block(analysis: str) -> str:
     </td></tr>"""
 
 
-def _footer(notes: list[str], counts: dict) -> str:
+def _footer(notes: list[str], counts: dict, sheet_url: str) -> str:
     lines = []
     if counts:
         lines.append(f"Run — found {counts.get('_found', '?')} &middot; "
@@ -146,7 +146,7 @@ def _footer(notes: list[str], counts: dict) -> str:
     if notes:
         lines.append("Sources skipped this run: " + "; ".join(_esc(n) for n in notes))
     lines.append(f'Full JDs, scores and history live in your '
-                 f'<a href="{sheet_url()}" style="color:#0a5c8a;">Google Sheet</a>.')
+                 f'<a href="{sheet_url}" style="color:#0a5c8a;">Google Sheet</a>.')
     return (f'<tr><td style="padding:14px 8px 0;font-family:{FONT};font-size:11px;color:{MUTED};'
             f'line-height:1.6;text-align:center;">{"<br>".join(lines)}</td></tr>')
 
@@ -158,7 +158,9 @@ def _section_header(text: str, color: str) -> str:
 
 
 def render_html(takeable: list[Job], aspirational: list[Job], analysis: str,
-                notes: list[str], counts: dict) -> str:
+                notes: list[str], counts: dict, settings) -> str:
+    sheet_url = settings.sheet_url
+    title = settings.digest_title
     date_str = time.strftime("%A, %d %B %Y")
     strong = sum(1 for j in takeable if j.band == "Strong")
     good = sum(1 for j in takeable if j.band == "Good")
@@ -185,7 +187,7 @@ def render_html(takeable: list[Job], aspirational: list[Job], analysis: str,
     <tr><td style="background:linear-gradient(135deg,#5b4b8a,#1a7f7a);background-color:#5b4b8a;
         border-radius:14px 14px 0 0;padding:24px 26px 20px;">
       <div style="font-family:{FONT};font-size:12px;letter-spacing:2px;text-transform:uppercase;
-           color:#d7d0ea;font-weight:600;">AI PM Job Digest &middot; India</div>
+           color:#d7d0ea;font-weight:600;">{title}</div>
       <div style="font-family:{SERIF};font-size:25px;color:#fff;font-weight:700;margin-top:6px;">
         {len(takeable)} role{'s' if len(takeable) != 1 else ''} you can act on now</div>
       <div style="font-family:{FONT};font-size:13px;color:#e4dcf2;margin-top:8px;">{date_str}{' &middot; ' + sub if sub else ''}</div>
@@ -196,7 +198,7 @@ def render_html(takeable: list[Job], aspirational: list[Job], analysis: str,
         font-family:{FONT};font-size:13px;color:{INK};">
       Ranked by a 0&ndash;100 fit score on the full JD. The shortlist is takeable from India now;
       strong roles that need relocation + a visa are parked at the bottom. Full JDs and every
-      score detail are in your <a href="{sheet_url()}" style="color:#5b4b8a;font-weight:600;">Google Sheet</a>.
+      score detail are in your <a href="{sheet_url}" style="color:#5b4b8a;font-weight:600;">Google Sheet</a>.
     </td></tr>
 
     <tr><td style="padding:16px 0 0 0;">
@@ -205,20 +207,20 @@ def render_html(takeable: list[Job], aspirational: list[Job], analysis: str,
       </table>
     </td></tr>
 
-    {_footer(notes, counts)}
+    {_footer(notes, counts, sheet_url)}
 
   </table>
 </div>"""
 
 
-def send(html_body: str, subject: str) -> None:
+def send(html_body: str, subject: str, settings) -> None:
     sender = env("GMAIL_ADDRESS", required=True)
     password = env("GMAIL_APP_PASSWORD", required=True)
-    recipients = [r.strip() for r in re.split(r"[,;]", env("DIGEST_RECIPIENT", required=True))
-                  if r.strip()]
+    recipient = settings.digest_recipient or env("DIGEST_RECIPIENT", required=True)
+    recipients = [r.strip() for r in re.split(r"[,;]", recipient) if r.strip()]
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = f"AI PM Job Digest <{sender}>"
+    msg["From"] = f"{settings.digest_title} <{sender}>"
     msg["To"] = ", ".join(recipients)
     msg.attach(MIMEText(html_body, "html"))
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:

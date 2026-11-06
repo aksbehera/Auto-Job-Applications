@@ -2,8 +2,8 @@
 """Verify Google Sheet access and print the service-account email to share with.
 
 Usage:
-  GOOGLE_SERVICE_ACCOUNT_FILE=sa.json python scripts/check_sheet.py
-  # or GOOGLE_SERVICE_ACCOUNT_JSON='{...}' python scripts/check_sheet.py
+  GOOGLE_SERVICE_ACCOUNT_FILE=sa.json python scripts/check_sheet.py [profile]
+  # or GOOGLE_SERVICE_ACCOUNT_JSON='{...}' python scripts/check_sheet.py deepanshi
 """
 
 import json
@@ -24,16 +24,19 @@ def _sa_email() -> str:
 
 
 def main() -> int:
-    from job_digest.config import sheet_id, sheet_url
+    from job_digest.config import load_settings
 
+    profile = sys.argv[1] if len(sys.argv) > 1 else None
+    settings = load_settings(profile)
+    print(f"Profile:         {settings.profile}")
     print(f"Service account: {_sa_email()}")
-    print(f"Sheet id:        {sheet_id()}")
-    print(f"Sheet URL:       {sheet_url()}")
+    print(f"Sheet id:        {settings.sheet_id}")
+    print(f"Sheet URL:       {settings.sheet_url}")
     print("\nThe service account above must have Editor access to that Sheet.\n")
 
     try:
         from job_digest.sheet import JobSheet
-        sheet = JobSheet()
+        sheet = JobSheet(settings)
         keys = sheet.existing_keys()
         unsent = sheet.unsent_rows()
         print("OK — connected to the Sheet.")

@@ -75,9 +75,11 @@ def _select(candidates, settings):
     return takeable, aspirational
 
 
-def run(dry_run: bool = False, use_apify: bool = True, use_ats: bool = True,
-        use_llm: bool = True) -> int:
-    settings = load_settings()
+def run(profile: str | None = None, dry_run: bool = False, use_apify: bool = True,
+        use_ats: bool = True, use_llm: bool = True) -> int:
+    settings = load_settings(profile)
+    log.info("Profile: %s → Sheet %s, recipient %s",
+             settings.profile, settings.sheet_id or "(unset)", settings.digest_recipient or "(unset)")
 
     disc = discovery.discover(settings, use_apify=use_apify, use_ats=use_ats)
     counts = dict(disc.counts)
@@ -94,11 +96,11 @@ def run(dry_run: bool = False, use_apify: bool = True, use_ats: bool = True,
         counts["_new"] = len(deduped)
         takeable, aspirational = _select(deduped, settings)
         counts["_sent"] = len(takeable) + len(aspirational)
-        _write_dry(takeable, aspirational, "", disc.skipped, counts)
+        _write_dry(takeable, aspirational, "", disc.skipped, counts, settings)
         return len(takeable) + len(aspirational)
 
     from .sheet import JobSheet
-    sheet = JobSheet()
+    sheet = JobSheet(settings)
     known = sheet.existing_keys()
     new_jobs = dedup.filter_known(deduped, known)
 
@@ -128,8 +130,8 @@ def run(dry_run: bool = False, use_apify: bool = True, use_ats: bool = True,
         log.info("Nothing above the send bar and no weekly analysis due — no email.")
         return 0
 
-    html_body = emailer.render_html(takeable, aspirational, analysis, disc.skipped, counts)
-    emailer.send(html_body, _subject(len(takeable), len(aspirational), bool(analysis)))
+    html_body = emailer.render_html(takeable, aspirational, analysis, disc.skipped, counts, settings)
+    emailer.send(html_body, _subject(settings, len(takeable), len(aspirational), bool(analysis)), settings)
 
     sent_rows = sorted({row_by_key[j.dedupe_key] for j in selected if j.dedupe_key in row_by_key})
     sheet.mark_sent(sent_rows)
@@ -160,17 +162,17 @@ def _maybe_weekly(sheet, client, settings) -> str:
     if not due:
         return ""
     log.info("Weekly requirements analysis is due — running it.")
-    return requirements.analyse(client, sheet.all_jobs())
+    return requirements.analyse(client, sheet.all_jobs(), settings)
 
 
-def _subject(n_take: int, n_asp: int, weekly: bool) -> str:
-    base = f"AI PM Job Digest — {time.strftime('%d %b %Y')} ({n_take} actionable"
+def _subject(settings, n_take: int, n_asp: int, weekly: bool) -> str:
+    base = f"{settings.digest_title} — {time.strftime('%d %b %Y')} ({n_take} actionable"
     base += f" + {n_asp} aspirational)" if n_asp else ")"
     return base + " + weekly analysis" if weekly else base
 
 
-def _write_dry(takeable, aspirational, analysis, notes, counts) -> None:
+def _write_dry(takeable, aspirational, analysis, notes, counts, settings) -> None:
     OUT_DIR.mkdir(exist_ok=True)
-    (OUT_DIR / "digest.html").write_text(
-        emailer.render_html(takeable, aspirational, analysis, notes, counts))
-    log.info("Dry run: wrote %s (no Sheet write, no email)", OUT_DIR / "digest.html")
+    out = OUT_DIR / f"digest_{settings.profile}.html"
+    out.write_text(emailer.render_html(takeable, aspirational, analysis, notes, counts, settings))
+    log.info("Dry run: wrote %s (no Sheet write, no email)", out)

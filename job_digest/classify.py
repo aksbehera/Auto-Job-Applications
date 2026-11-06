@@ -61,12 +61,15 @@ def _seniority(job: Job, settings: Settings) -> tuple[str, bool]:
 
 
 def _in_lane(job: Job, settings: Settings) -> bool:
-    """Title carries a product/solutions signal AND an AI signal is present
-    (in the title, via a target company, or strongly in the JD body)."""
+    """Title carries a role signal (product/solutions, or sales/BD for other
+    profiles). When the profile requires a domain signal (e.g. AI PM), also
+    require it in the title, via a target company, or strongly in the JD body."""
     title = _norm(job.title)
     role_signal = _has(title, settings.pm_terms) or _has(title, settings.solutions_terms)
     if not role_signal:
         return False
+    if not settings.require_domain_signal:
+        return True
     if _has(title, settings.ai_terms):
         return True
     if _company_tier(job.company, settings):

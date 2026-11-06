@@ -13,7 +13,7 @@ import time
 import gspread
 from google.oauth2.service_account import Credentials
 
-from .config import COLUMNS, JOBS_TAB, META_TAB, sheet_id
+from .config import COLUMNS, JOBS_TAB, META_TAB
 from .models import Job
 
 log = logging.getLogger(__name__)
@@ -45,9 +45,9 @@ def _credentials() -> Credentials:
 class JobSheet:
     """Thin wrapper over the Jobs + _meta worksheets."""
 
-    def __init__(self):
+    def __init__(self, settings):
         self.client = gspread.authorize(_credentials())
-        self.doc = self.client.open_by_key(sheet_id())
+        self.doc = self.client.open_by_key(settings.sheet_id)
         self.jobs = self._ensure_tab(JOBS_TAB, header=COLUMNS)
         self.meta = self._ensure_tab(META_TAB, header=["key", "value"])
 

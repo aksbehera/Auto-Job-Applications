@@ -6,6 +6,18 @@
 # search. Lists are matched case-insensitively against job titles / companies.
 # ---------------------------------------------------------------------------
 
+# --- Profile identity (per person; keeps this search fully separate) ---------
+sheet_id: "1mTNmTNJOnaUq-31XfapO36ZSY2CNLZP_7isq3KJTN3A"
+digest_recipient: "aksbehera@gmail.com"
+digest_title: "AI PM Job Digest"
+# One-line system prompt for the LLM scorer; the full rubric is in rubric.md.
+scoring_system: >-
+  You are a sharp technical recruiter scoring AI / product roles for one specific
+  candidate. Judge TRUE fit by reading the job description's must-have requirements,
+  never by the title alone. Takeability from India is decisive: a role he cannot
+  physically take from India now must never score like one he can, however strong
+  the company. Be decisive and honest. Return only JSON.
+
 # How recent a posting must be to count (days). Older roles are dropped.
 recency_days: 14
 # Target number of roles per digest email (quality over firehose).

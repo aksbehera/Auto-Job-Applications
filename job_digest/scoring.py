@@ -36,62 +36,9 @@ NOT_TAKEABLE_CAP = 60   # a role he can't take from India can't read as Strong
 JD_CHARS = 12000        # score on the full JD, not a snippet
 PARTIAL_JD_CHARS = 400  # below this the JD is treated as partial → provisional
 
-_SYSTEM = (
-    "You are a sharp technical recruiter scoring AI / product roles for one "
-    "specific candidate. Judge TRUE fit by reading the job description's must-have "
-    "requirements, never by the title alone. Takeability from India is decisive: a "
-    "role he cannot physically take from India now must never score like one he "
-    "can, however strong the company. Be decisive and honest. Return only JSON."
-)
-
-_RUBRIC = """Score each dimension from 0.0 to 1.0:
-
-role_type — is this the right KIND of role?
-  1.0 core AI/GenAI Product Manager; 0.7 adjacent product (AI Product Owner,
-  Applied-AI PM, product-builder); 0.4 consultative/customer-facing solutions
-  (solutions engineer / forward-deployed / solutions architect that is discovery,
-  scoping, demos, solutioning, delivery — NOT writing production code or training
-  models); 0.0 code-gated engineering, ML/AI engineer (training, fine-tuning,
-  SFT/RLHF, MLOps), data/solution architect as the core job, IC data/research
-  scientist, or non-AI/generic PM, product marketing, program/project manager.
-
-domain — agentic AI, LLMs, RAG, agents, GenAI, enterprise AI at the core.
-  1.0 agentic/LLM product at the core; partial for adjacent; small bonus if it
-  rewards decision-science/experimentation/ML-product-sense or media-generation.
-
-seniority — LEVEL and comp fit vs ~11 years / manager; money matters more than
-  title to him, so a below-level or low-comp role is a real miss even if the AI
-  fit is perfect.
-  1.0 manager/senior/lead/staff pitched at ~8–15 yrs; 0.5 slightly off (15+ yrs
-  required, or a borderline senior-IC); 0.3 clearly below his level (PM I, PM II,
-  "3–5 years", mid-level); 0.1 intern/junior or Director/VP-only.
-
-company — quality, AI-nativeness, and likely pay.
-  1.0 strong-fit target; 0.8 reach target; 0.7 strong non-listed AI-native;
-  0.5 safe/listed; 0.4 or less for IT-services / staffing / pure-delivery shops
-  where a market-priced Salesforce-equivalent move is unlikely (even if listed);
-  0.3 ordinary/unknown. (Tier hint is provided; judge AI-nativeness from the JD.)
-
-location — 1.0 remote and India-eligible; 0.9 India on-site/hybrid; 0.5
-  international remote that plausibly hires in India; 0.1 international on-site,
-  US-state-locked, or US-only "remote" with no India path.
-
-feasibility — 1.0 no blockers; lower for visa-required international with no stated
-  India hiring/sponsorship, immediate/0–15-day-joiner demands (he has a notice
-  period), likely-below-market comp, or a hard must-have he lacks (he does NOT
-  hand-write production code or train models).
-
-Also set these judgements (booleans):
-  takeable — true if the role is India-located OR remote-and-India-eligible.
-             false if it is international on-site, US-state-locked, or US-only
-             "remote" with no stated India hiring or visa sponsorship. Company
-             prestige does NOT make a role takeable.
-  excluded_role_type — true if role_type is 0 (code-gated eng / ML-eng /
-             data-architect / IC DS / non-AI or generic PM).
-  unmet_must_have — true if a stated hard must-have is something he lacks; put it
-             in "blocker".
-  partial_jd — true if the job description looks truncated or is only a short
-             snippet, so your scoring is uncertain."""
+# The scoring system prompt and the per-dimension rubric are profile-specific and
+# come from settings (profiles/<name>/targets.yaml + rubric.md), so the same
+# engine scores an AI-PM search and a sales search by different criteria.
 
 _PROMPT = """CANDIDATE PROFILE
 {profile}
@@ -190,16 +137,16 @@ def _fallback(job: Job, settings) -> None:
                    else f"{job.title} at {job.company}. Full JD not provided by source.")
 
 
-def _score_call(client, prompt: str) -> dict:
+def _score_call(client, prompt: str, system: str) -> dict:
     resp = client.messages.create(
-        model=SUMMARY_MODEL, max_tokens=800, system=_SYSTEM,
+        model=SUMMARY_MODEL, max_tokens=800, system=system,
         messages=[{"role": "user", "content": prompt}],
     )
     try:
         return _parse_json(resp.content[0].text)
     except (json.JSONDecodeError, ValueError):
         resp = client.messages.create(
-            model=SUMMARY_MODEL, max_tokens=800, system=_SYSTEM,
+            model=SUMMARY_MODEL, max_tokens=800, system=system,
             messages=[
                 {"role": "user", "content": prompt},
                 {"role": "assistant", "content": resp.content[0].text},
@@ -212,20 +159,22 @@ def _score_call(client, prompt: str) -> dict:
 
 
 def score_jobs(client, jobs: list[Job], settings) -> None:
-    profile = load_profile() or "(no profile provided)"
+    profile = load_profile(settings.profile) or "(no profile provided)"
+    system = settings.scoring_system or "You score job fit for a candidate. Return only JSON."
+    rubric = settings.scoring_rubric
     for job in jobs:
         if client is None:
             _fallback(job, settings)
             continue
         prompt = _PROMPT.format(
-            profile=profile, rubric=_RUBRIC,
+            profile=profile, rubric=rubric,
             title=job.title, company=job.company, tier=job.tier or "not listed",
             location=job.location or "(unspecified)", remote=job.remote,
             india=_is_india(job, settings), seniority=job.seniority or "(unknown)",
             jd=(job.description or job.title)[:JD_CHARS],
         )
         try:
-            data = _score_call(client, prompt)
+            data = _score_call(client, prompt, system)
             job.summary = str(data.get("summary", "")).strip()
             job.requirements = [str(r).strip() for r in data.get("requirements", []) if str(r).strip()][:8]
             job.subscores = {d: float(data.get("subscores", {}).get(d, 0) or 0) for d in WEIGHTS}

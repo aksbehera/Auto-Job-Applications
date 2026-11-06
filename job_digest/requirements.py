@@ -53,12 +53,13 @@ def _jd_blob(all_rows: list[dict], limit: int = 60, per_jd_chars: int = 1500) ->
     return "\n\n---\n\n".join(chunks), len(chunks)
 
 
-def analyse(client, all_rows: list[dict]) -> str:
+def analyse(client, all_rows: list[dict], settings) -> str:
     """Return the analysis as plain text, or '' if there's nothing to analyse."""
     jds, n = _jd_blob(all_rows)
     if n == 0:
         return ""
-    prompt = _PROMPT.format(n=n, jds=jds, profile=load_profile() or "(no profile provided)")
+    prompt = _PROMPT.format(n=n, jds=jds,
+                            profile=load_profile(settings.profile) or "(no profile provided)")
     try:
         resp = client.messages.create(
             model=SUMMARY_MODEL,

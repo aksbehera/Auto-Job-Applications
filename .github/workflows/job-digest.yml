@@ -1,4 +1,4 @@
-name: AI PM Job Digest
+name: Job Digest
 
 on:
   schedule:
@@ -6,63 +6,76 @@ on:
     - cron: "30 3 */2 * *"
   workflow_dispatch:
     inputs:
+      profile:
+        description: "Which profile to run (both, akshit, deepanshi)"
+        type: choice
+        default: both
+        options: [both, akshit, deepanshi]
       dry_run:
         description: "Dry run (render only, no Sheet write, no email)"
         type: boolean
         default: false
-      no_apify:
-        description: "Skip paid Apify platforms (ATS boards only)"
-        type: boolean
-        default: false
-  # Fire an on-demand real run by committing any change to .github/fire-digest
-  # (e.g. `date > .github/fire-digest && git commit -am fire && git push`).
-  # Ordinary code pushes don't touch that file, so they never send a digest.
+  # Fire an on-demand real run for BOTH profiles by committing any change to
+  # .github/fire-digest. Ordinary code pushes don't touch it, so they never send.
   push:
     paths:
       - ".github/fire-digest"
 
-# The Google Sheet is the system of record; nothing is committed back.
+# Each person's Google Sheet is the system of record; nothing is committed back.
 permissions:
   contents: read
-
-concurrency:
-  group: job-digest
-  cancel-in-progress: false
 
 jobs:
   digest:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false        # one person's run failing must not cancel the other
+      matrix:
+        profile: [akshit, deepanshi]
+    concurrency:
+      group: job-digest-${{ matrix.profile }}
+      cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      # Skip the profiles not chosen in a manual dispatch (schedule/fire run both).
+      - name: Should this profile run?
+        id: gate
+        run: |
+          want="${{ github.event.inputs.profile }}"
+          if [ -z "$want" ] || [ "$want" = "both" ] || [ "$want" = "${{ matrix.profile }}" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - uses: actions/setup-python@v5
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v4
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
+      - if: steps.gate.outputs.run == 'true'
+        run: pip install -r requirements.txt
 
-      - run: pip install -r requirements.txt
-
-      - name: Run job digest
+      - name: Run job digest (${{ matrix.profile }})
+        if: steps.gate.outputs.run == 'true'
         env:
+          JOB_PROFILE: ${{ matrix.profile }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          # Optional: override the target Sheet without editing code.
-          JOBS_SHEET_ID: ${{ secrets.JOBS_SHEET_ID }}
-          # Recipients are plain addresses (not secrets) — edit here to change them.
-          DIGEST_RECIPIENT: "aksbehera@gmail.com"
+          # Sheet id and recipient come from profiles/<profile>/targets.yaml.
         run: |
-          FLAGS=""
+          FLAGS="--profile ${{ matrix.profile }}"
           if [ "${{ inputs.dry_run }}" = "true" ]; then FLAGS="$FLAGS --dry-run"; fi
-          if [ "${{ inputs.no_apify }}" = "true" ]; then FLAGS="$FLAGS --no-apify"; fi
           python run_scraper.py $FLAGS
 
       - name: Upload dry-run output
-        if: ${{ inputs.dry_run == true }}
+        if: ${{ steps.gate.outputs.run == 'true' && inputs.dry_run == true }}
         uses: actions/upload-artifact@v4
         with:
-          name: digest-html
-          path: out/digest.html
+          name: digest-${{ matrix.profile }}
+          path: out/digest_${{ matrix.profile }}.html
           if-no-files-found: ignore
