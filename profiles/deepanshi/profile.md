@@ -24,14 +24,22 @@ high-performing sales/counselling teams. Consistently a top revenue performer
 (regularly top-20 of 120 RMs on the revenue leaderboard in earlier roles).
 
 **Background & openness:** her experience is mostly **B2C** (edtech / study-abroad
-admissions and student recruitment). She is **open to B2B** roles where companies
-will consider her, and to sectors beyond education — **technology, SaaS, and other
-growth-focused industries** (per her own stated interest).
+admissions and student recruitment). **Industry is not a barrier** — she is open
+to roles **inside and outside education**, and to **B2B / enterprise and B2C**
+alike, where her profile aligns.
 
-**What she's optimizing for:** a **senior sales / business-development / revenue-
-ownership role where she is in charge of conversions and the number** — Sales
-Leadership, Business Development, Strategic Partnerships, Enterprise Accounts or
-Commercial Operations. The role owning the revenue target is the point.
+**What she's optimizing for:** a **senior / managerial sales-and-revenue role
+where she owns high-end conversions and the number** — Sales Leadership, Business
+Development, Strategic Partnerships, Enterprise Sales / Accounts, University
+Relations / representative roles, or Commercial Operations. She leads and owns the
+target; she is **NOT looking for roles whose day-to-day is regularly calling
+students or clients, field detailing, or junior coordination** — that is below her
+level.
+
+**Company aspiration — important:** she is aiming for **big, reputable
+multinationals and well-known brands** (the calibre of Microsoft, LinkedIn,
+Salesforce, Google, Amazon). Given her profile she is **not interested in small,
+unknown, local or staffing-type companies**. A strong brand matters to her.
 
 ## Keywords she already signals
 Sales Strategy · Sales Management · Business Development · revenue growth ·

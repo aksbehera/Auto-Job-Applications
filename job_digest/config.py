@@ -34,6 +34,13 @@ STORE_THRESHOLD = 55         # store Marginal+ in the Sheet; drop Low entirely
 ASPIRATIONAL_THRESHOLD = 70  # show not-takeable roles whose UNCAPPED fit is this high
 BANDS = [(85, "Strong"), (70, "Good"), (55, "Marginal"), (0, "Low")]
 
+# Default dimension weights (sum to 100). A profile may override via `weights:`
+# in its targets.yaml (e.g. a sales profile that cares more about company brand).
+DEFAULT_WEIGHTS = {
+    "role_type": 30, "domain": 20, "seniority": 15,
+    "company": 15, "location": 15, "feasibility": 5,
+}
+
 # Column order for the Jobs worksheet (the system of record).
 COLUMNS = [
     "Date added", "Source platform", "Company", "Tier", "Title", "Location",
@@ -64,6 +71,7 @@ class Settings:
     digest_title: str
     scoring_system: str
     scoring_rubric: str
+    weights: dict
     recency_days: int
     max_items_per_digest: int
     weekly_interval_days: int
@@ -124,6 +132,7 @@ def load_settings(profile: str | None = None) -> Settings:
         digest_title=str(raw.get("digest_title", "Job Digest")),
         scoring_system=str(raw.get("scoring_system", "")).strip(),
         scoring_rubric=scoring_rubric,
+        weights={**DEFAULT_WEIGHTS, **{k: int(v) for k, v in (raw.get("weights") or {}).items()}},
         recency_days=int(raw.get("recency_days", 14)),
         max_items_per_digest=int(raw.get("max_items_per_digest", 25)),
         weekly_interval_days=int(raw.get("weekly_interval_days", 7)),

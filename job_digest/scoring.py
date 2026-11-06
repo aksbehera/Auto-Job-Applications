@@ -81,8 +81,8 @@ def _band(score: int) -> str:
     return "Low"
 
 
-def _weighted(sub: dict) -> int:
-    total = sum(WEIGHTS[d] * max(0.0, min(1.0, float(sub.get(d, 0) or 0))) for d in WEIGHTS)
+def _weighted(sub: dict, weights: dict) -> int:
+    total = sum(weights[d] * max(0.0, min(1.0, float(sub.get(d, 0) or 0))) for d in WEIGHTS)
     return int(round(total))
 
 
@@ -97,9 +97,9 @@ def _parse_json(text: str) -> dict:
         return json.loads(re.sub(r'(?<!\\)[\n\r\t]+', " ", t))
 
 
-def _apply_gates(job: Job, data: dict) -> int:
+def _apply_gates(job: Job, data: dict, weights: dict) -> int:
     """Raw weighted score, then hard caps; sets job.raw_score and exclude tags."""
-    raw = _weighted(job.subscores)
+    raw = _weighted(job.subscores, weights)
     job.raw_score = raw
     score = raw
     if not data.get("takeable", True):
@@ -117,7 +117,7 @@ def _apply_gates(job: Job, data: dict) -> int:
     return max(0, min(100, score))
 
 
-def _fallback(job: Job, settings) -> None:
+def _fallback(job: Job, settings, weights: dict) -> None:
     india = _is_india(job, settings)
     job.takeable = bool(job.remote or india)
     sub = {
@@ -128,7 +128,7 @@ def _fallback(job: Job, settings) -> None:
         "feasibility": 1.0,
     }
     job.subscores = sub
-    job.raw_score = _weighted(sub)
+    job.raw_score = _weighted(sub, weights)
     job.match_score = min(job.raw_score, NOT_TAKEABLE_CAP) if not job.takeable else job.raw_score
     job.band = _band(job.match_score)
     job.provisional = len((job.description or "").strip()) < PARTIAL_JD_CHARS
@@ -162,9 +162,10 @@ def score_jobs(client, jobs: list[Job], settings) -> None:
     profile = load_profile(settings.profile) or "(no profile provided)"
     system = settings.scoring_system or "You score job fit for a candidate. Return only JSON."
     rubric = settings.scoring_rubric
+    weights = settings.weights
     for job in jobs:
         if client is None:
-            _fallback(job, settings)
+            _fallback(job, settings, weights)
             continue
         prompt = _PROMPT.format(
             profile=profile, rubric=rubric,
@@ -182,7 +183,7 @@ def score_jobs(client, jobs: list[Job], settings) -> None:
             job.fit_reason = str(data.get("fit_reason", "")).strip()
             job.gap_risk = str(data.get("gap_risk", "")).strip()
             job.takeable = bool(data.get("takeable", True))
-            job.match_score = _apply_gates(job, data)
+            job.match_score = _apply_gates(job, data, weights)
             job.band = _band(job.match_score)
             job.provisional = bool(data.get("partial_jd")) or \
                 len((job.description or "").strip()) < PARTIAL_JD_CHARS
@@ -190,4 +191,4 @@ def score_jobs(client, jobs: list[Job], settings) -> None:
                 job.summary = f"{job.title} at {job.company}."
         except Exception as exc:
             log.warning("Scoring failed for %r @ %s: %s", job.title, job.company, exc)
-            _fallback(job, settings)
+            _fallback(job, settings, weights)

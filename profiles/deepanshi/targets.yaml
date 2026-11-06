@@ -19,6 +19,16 @@ scoring_system: >-
 # sales/BD-titled role passes the cheap pre-filter and the LLM judges real fit.
 require_domain_signal: false
 
+# She targets big reputable MNCs/brands and is industry-agnostic, so company
+# brand/quality is weighted heavily and domain (which industry) lightly.
+weights:
+  role_type: 30      # senior managerial sales leadership vs low-level calling/coordination
+  company: 25        # big reputable MNC/brand (high) vs small/unknown/staffing (low)
+  seniority: 15
+  location: 15
+  domain: 10         # industry-agnostic — conversions ownership matters, sector less so
+  feasibility: 5
+
 recency_days: 14
 max_items_per_digest: 25
 weekly_interval_days: 7
@@ -50,20 +60,23 @@ pm_terms:
   - head of revenue
   - growth manager
   - sales strategy
+  - enterprise sales
+  - enterprise account
   - account manager
   - key account
-  - enterprise account
   - account director
   - strategic partnerships
   - partnerships manager
   - partnerships lead
+  - university relations
+  - university partnerships
+  - university representative
+  - institutional sales
+  - go to market
+  - gtm
   - admissions manager
   - admissions lead
-  - enrollment
-  - enrolment
   - student recruitment
-  - counselling manager
-  - counseling manager
   - commercial manager
   - commercial lead
 solutions_terms:
@@ -136,53 +149,81 @@ junior_terms:
 # A positive signal for the company dimension; not an exclusion.
 # ---------------------------------------------------------------------------
 companies:
+  # Big global MNCs / brands she aspires to (tech-first + top-brand education).
   strong-fit:
+    - Microsoft
+    - LinkedIn
+    - Salesforce
+    - Google
+    - Amazon
+    - AWS
+    - Meta
+    - Adobe
+    - SAP
+    - Oracle
+    - Atlassian
+    - ServiceNow
+    - HubSpot
+    - Apple
+    - Nvidia
+    - IBM
+    - Cisco
+    - Workday
+    - Zoom
     - upGrad
-    - Scaler
-    - Physics Wallah
-    - PhysicsWallah
-    - Unacademy
-    - Vedantu
-    - Great Learning
     - Emeritus
     - Eruditus
-    - Simplilearn
-    - Classplus
-    - LEAD
-    - Masai School
-    - Newton School
     - Coursera
-    - Udemy
+    - Great Learning
+  # Strong consumer / internet / SaaS / BFSI / consulting brands.
   reach:
-    - Razorpay
-    - Zomato
+    - Uber
     - Swiggy
+    - Zomato
+    - Flipkart
     - Meesho
+    - Nykaa
+    - Razorpay
     - CRED
-    - Groww
-    - Zerodha
     - PhonePe
     - Paytm
-    - Nykaa
-    - Lenskart
+    - Groww
+    - Zerodha
     - Freshworks
     - Zoho
-    - Salesforce
-    - HubSpot
     - BrowserStack
     - Postman
     - Chargebee
+    - American Express
+    - Visa
+    - Mastercard
+    - Accenture
+    - Deloitte
+    - EY
+    - KPMG
+    - PwC
+    - MakeMyTrip
+    - Booking.com
+    - Expedia
+    - Unacademy
+    - Physics Wallah
+    - Simplilearn
+    - Udemy
+  # Large, reputable, high-volume employers (incl. BFSI, conglomerates).
   safe:
-    - Amazon
-    - Flipkart
-    - BYJU'S
-    - Byju's
+    - HDFC Bank
+    - ICICI Bank
+    - Axis Bank
+    - Kotak Mahindra
+    - Standard Chartered
+    - HSBC
     - Info Edge
     - Naukri
-    - PolicyBazaar
-    - NoBroker
-    - Concentrix
-    - Teleperformance
+    - Myntra
+    - Reliance
+    - Tata
+    - Aditya Birla
+    - Bajaj
 
 # ---------------------------------------------------------------------------
 # LOCATIONS — Gurugram / Delhi NCR based; India on-site/hybrid or India-remote.
@@ -217,12 +258,12 @@ remote_terms:
 # SEARCH QUERIES — fed to each enabled Apify platform (one actor run each).
 # ---------------------------------------------------------------------------
 search_queries:
-  - Sales Manager
-  - Business Development Manager
   - Senior Sales Manager
-  - Inside Sales Manager
+  - Business Development Manager
+  - Enterprise Sales Manager
+  - Strategic Partnerships Manager
   - Key Account Manager
-  - Admissions Manager
+  - University Relations Manager
 
 default_location: India
 
