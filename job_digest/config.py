@@ -105,6 +105,45 @@ def resolve_profile(profile: str | None = None) -> str:
     return profile or os.environ.get("JOB_PROFILE", "").strip() or DEFAULT_PROFILE
 
 
+def _load_shared_platforms() -> dict:
+    path = PROFILES_DIR / "platforms.yaml"
+    if not path.exists():
+        return {}
+    return yaml.safe_load(path.read_text()) or {}
+
+
+def _build_platforms(raw: dict) -> list[Platform]:
+    """Platforms come from the shared profiles/platforms.yaml library: a profile
+    lists which to enable (`platforms_enabled`) and may tweak inputs/fields per
+    platform (`platform_overrides`). A legacy inline `platforms:` list still works.
+    """
+    if raw.get("platforms"):   # legacy inline definitions
+        return [
+            Platform(name=p["name"], enabled=bool(p.get("enabled", False)),
+                     actor=p.get("actor", ""), results_per_query=int(p.get("results_per_query", 25)),
+                     input=p.get("input", {}) or {}, fields=p.get("fields", {}) or {},
+                     root=p.get("root", "") or "")
+            for p in raw["platforms"]
+        ]
+    library = _load_shared_platforms()
+    overrides = raw.get("platform_overrides", {}) or {}
+    out = []
+    for name in raw.get("platforms_enabled", []):
+        base = library.get(name)
+        if not base:
+            continue
+        ov = overrides.get(name, {}) or {}
+        out.append(Platform(
+            name=name, enabled=True,
+            actor=ov.get("actor") or base.get("actor", ""),
+            results_per_query=int(base.get("results_per_query", 25)),
+            input={**(base.get("input") or {}), **(ov.get("input") or {})},
+            fields={**(base.get("fields") or {}), **(ov.get("fields") or {})},
+            root=ov.get("root", base.get("root", "")) or "",
+        ))
+    return out
+
+
 def load_settings(profile: str | None = None) -> Settings:
     profile = resolve_profile(profile)
     pdir = _profile_dir(profile)
@@ -113,15 +152,7 @@ def load_settings(profile: str | None = None) -> Settings:
         raise SystemExit(f"Unknown profile {profile!r}: {path} not found. "
                          f"Available: {[p.name for p in PROFILES_DIR.iterdir() if p.is_dir()]}")
     raw = yaml.safe_load(path.read_text())
-    platforms = [
-        Platform(
-            name=p["name"], enabled=bool(p.get("enabled", False)),
-            actor=p.get("actor", ""), results_per_query=int(p.get("results_per_query", 25)),
-            input=p.get("input", {}) or {}, fields=p.get("fields", {}) or {},
-            root=p.get("root", "") or "",
-        )
-        for p in raw.get("platforms", [])
-    ]
+    platforms = _build_platforms(raw)
     rubric_path = pdir / "rubric.md"
     scoring_rubric = rubric_path.read_text().strip() if rubric_path.exists() else ""
     lower = lambda key: [t.lower() for t in raw.get(key, [])]

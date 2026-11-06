@@ -33,6 +33,7 @@ WEIGHTS = {
     "feasibility": 5,
 }
 NOT_TAKEABLE_CAP = 60   # a role he can't take from India can't read as Strong
+STRETCH_CAP = 72        # right level/brand but a motion/background gap → not Strong
 JD_CHARS = 12000        # score on the full JD, not a snippet
 PARTIAL_JD_CHARS = 400  # below this the JD is treated as partial → provisional
 
@@ -65,6 +66,9 @@ Return ONLY this JSON object:
   "gap_risk": "the single biggest gap or risk",
   "takeable": true/false,
   "excluded_role_type": true/false,
+  "excluded_company": true/false,
+  "stretch": true/false,
+  "stretch_reason": "why it is a stretch for her, or empty",
   "unmet_must_have": true/false,
   "partial_jd": true/false,
   "blocker": "the unmet must-have, or empty"
@@ -106,11 +110,23 @@ def _apply_gates(job: Job, data: dict, weights: dict) -> int:
         job.takeable = False
         score = min(score, NOT_TAKEABLE_CAP)
         job.exclude_tag = "relocation + visa required"
+    # Stretch: right level/brand but a sales motion / background she lacks (e.g.
+    # enterprise-tech/SaaS). Kept visible but capped out of Strong and parked
+    # below roles she can realistically land.
+    if data.get("stretch"):
+        score = min(score, STRETCH_CAP)
+        sr = str(data.get("stretch_reason", "")).strip()
+        job.exclude_tag = job.exclude_tag or ("stretch" + (f": {sr}" if sr else ""))
     if data.get("unmet_must_have"):
         score = min(score, 30)
         blk = str(data.get("blocker", "")).strip()
         job.exclude_tag = ("unmet-must-have" + (f": {blk}" if blk else "")) if not job.exclude_tag \
             else job.exclude_tag
+    # Hard no's: a small/unknown/local/staffing employer, or a role whose core is
+    # the wrong kind of work (physical/field sales, regular calling, non-sales).
+    if data.get("excluded_company"):
+        score = min(score, 20)
+        job.exclude_tag = "small/unknown employer"
     if data.get("excluded_role_type"):
         score = min(score, 15)
         job.exclude_tag = "excluded-role-type"

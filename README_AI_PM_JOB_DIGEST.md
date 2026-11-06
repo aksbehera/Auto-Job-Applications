@@ -70,9 +70,15 @@ US-state-locked, or US-only "remote" with no stated India hiring/visa). A
 not-takeable role is capped at 60 so it **can never read as Strong** — company
 prestige doesn't change takeability — and is tagged `relocation + visa required`.
 
-Hard caps: code-gated / ML-eng / data-architect / non-AI-PM → 15
-(`excluded-role-type`); unmet hard must-have → 30 (blocker named); not takeable →
-60. Bands: **Strong 85+ (and takeable) · Good 70–84 · Marginal 55–69 · Low <55**.
+Hard caps (profiles opt into the ones their rubric defines): wrong role-type
+(code-gated/ML-eng for AI-PM; regular-calling/field-sales for sales) → 15
+(`excluded-role-type`); small/unknown/staffing employer → 20
+(`small/unknown employer`); unmet hard must-have → 30; not takeable → 60; a
+**stretch** — right level/brand but a sales-motion/background gap, e.g. enterprise
+B2B tech sales — → 72, kept visible but out of Strong. Bands: **Strong 85+ (and
+takeable) · Good 70–84 · Marginal 55–69 · Low <55**. Dimension weights are
+per-profile (`weights:` in targets.yaml; the sales profile weights company brand
+heavily and industry lightly).
 
 The email has two parts: the **actionable shortlist** (takeable, score ≥70,
 ranked) and, parked at the bottom, **aspirational** international roles (not
@@ -135,12 +141,18 @@ APIFY_TOKEN=... python scripts/test_apify.py indeed   "AI Product Manager"
 If a field shows up blank/MISSING, add the real output key to that platform's
 `fields` map in `config/targets.yaml`.
 
-**Verified actors (enabled by default):** LinkedIn `bebity~linkedin-jobs-scraper`,
+**Platforms** are a shared library in `profiles/platforms.yaml`; each profile
+lists which to run via `platforms_enabled:` and can tweak inputs via
+`platform_overrides:`. Verified actors: LinkedIn `bebity~linkedin-jobs-scraper`,
 Indeed `misceres~indeed-scraper`, Naukri `muhammetakkurtt~naukri-job-scraper`,
-Foundit `themineworks~foundit-jobs-scraper`, Instahyre
-`getascraper~instahyre-jobs-scraper`, Wellfound `memo23~wellfound-jobs-scraper`.
-Glassdoor is wired but off. (Foundit returns lead metadata + apply link but not
-the full JD text; the other five return full JDs.)
+Foundit `themineworks~foundit-jobs-scraper`, Wellfound `memo23~wellfound-jobs-scraper`,
+Instahyre `getascraper~instahyre-jobs-scraper`, **IIMJobs**
+`data_daemon~iimjobs-jobs-scraper` (senior management/sales roles), **Shine**
+`themineworks~shine-jobs-scraper`. Akshit runs LinkedIn/Indeed/Naukri/Foundit/
+Wellfound/Instahyre/IIMJobs + the ATS boards; Deepanshi runs the same set with
+Shine instead of Instahyre. Glassdoor is in the library but off (its actor is
+flaky). (Foundit returns lead metadata + apply link but not full JD text; the
+others return full JDs.)
 
 **ATS boards (free, no Apify):** all verified live — Greenhouse for Databricks,
 Anthropic, Glean (`gleanwork`), Gong (`gongio`), Observe.ai (`observeai`), Cresta;

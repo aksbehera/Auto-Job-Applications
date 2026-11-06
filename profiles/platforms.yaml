@@ -1,0 +1,169 @@
+# ---------------------------------------------------------------------------
+# Shared platform library — every Apify actor the pipeline knows how to run,
+# with its verified input template ({query}/{location} substituted per search
+# query) and output field map. Each profile picks which to run via
+# `platforms_enabled:` and may tweak inputs via `platform_overrides:` in its
+# own targets.yaml. Add a portal here once and both people can use it.
+# ---------------------------------------------------------------------------
+
+linkedin:
+  actor: "bebity~linkedin-jobs-scraper"
+  input:
+    titles: ["{query}"]
+    locations: ["{location}"]
+    rows: 12
+    publishedAt: "r604800"
+    companyProfile: false
+  fields:
+    title: [title, jobTitle]
+    company: [companyName, company]
+    location: [location, place]
+    url: [jobUrl, link, url, applyUrl]
+    description: [description, descriptionText, descriptionHtml]
+    posted: [publishedAt, postedAt, postedTime, listedAt, datePosted, postedDate]
+    salary: [salary, salaryInfo]
+    seniority: [seniorityLevel, experienceLevel]
+
+indeed:
+  actor: "misceres~indeed-scraper"
+  input:
+    position: "{query}"
+    country: IN
+    location: "{location}"
+    maxItemsPerSearch: 12
+    parseCompanyDetails: false
+    saveOnlyUniqueItems: true
+  fields:
+    title: [positionName, title]
+    company: [company, companyName]
+    location: [location]
+    url: [url, externalApplyLink]
+    description: [description, descriptionText]
+    posted: [postingDateParsed, postedAt, date]
+    salary: [salary]
+
+naukri:
+  actor: "muhammetakkurtt~naukri-job-scraper"
+  root: jobDetails
+  input:
+    keyword: "{query}"
+    location: "{location}"
+    maxJobs: 50               # this actor enforces a minimum of 50
+    fetchDetails: true
+    freshness: "15"
+    sortBy: "date"
+  fields:
+    title: [title]
+    company: [companyDetail, staticCompanyName]
+    location: [locations, wfhLabel]
+    url: [staticUrl]
+    description: [description]
+    posted: [createdDate]
+    salary: [salaryDetail]
+
+foundit:
+  actor: "themineworks~foundit-jobs-scraper"
+  input:
+    searchKeywords: ["{query}"]
+    location: "{location}"
+    postedWithinDays: "15"
+    maxJobs: 12
+    includeJobDescription: true
+  fields:
+    title: [title]
+    company: [company]
+    location: [location]
+    url: [apply_url]
+    description: [job_description, jobDescription, description]
+    posted: [posted_date_text, posted_date, date]
+    salary: [salary]
+
+wellfound:
+  actor: "memo23~wellfound-jobs-scraper"
+  input:
+    keyword: "{query}"
+    location: "{location}"
+    maxItems: 12
+    enrichJobDetail: true
+    includeNoSalary: true
+  fields:
+    title: [jobTitle, title, role]
+    company: [companyName, company, startupName]
+    location: [locations, locationTags, jobLocationType, location]
+    url: [jobUrl, applyUrl, url]
+    description: [jobDescription, jobDescriptionSnippet, description]
+    posted: [postedAtUnix, postedAt, datePosted, date]
+    salary: [compensation, salary, salaryRange]
+
+instahyre:
+  actor: "getascraper~instahyre-jobs-scraper"
+  input:
+    keywords: ["{query}"]
+    keywordMatch: "any"
+    jobFunctionSlugs: []        # set per profile (e.g. product-management / sales)
+    maxItems: 12
+    includeDetails: true
+  fields:
+    title: [title, candidateTitle]
+    company: [companyName, company]
+    location: [locationsRaw, locations, city]
+    url: [publicUrl, url]
+    description: [description]
+    posted: [postedAt, postedDate, date]
+    salary: [salary]
+
+# IIMJobs — premium MBA / management / sales-leadership roles (senior). Relevant
+# to both lanes. The actor takes a `queries` array; we pass one query per run.
+iimjobs:
+  actor: "data_daemon~iimjobs-jobs-scraper"
+  input:
+    queries: ["{query}"]
+    locations: ["{location}"]
+    includeDescription: true
+    maxJobsPerQuery: 12
+    postedWithinDays: 15
+  fields:
+    title: [title, jobTitle, designation]
+    company: [company, companyName, organisation, recruiterCompany]
+    location: [location, locations, jobLocation]
+    url: [url, jobUrl, link, applyUrl, jobLink]
+    description: [description, jobDescription, descriptionText, jd]
+    posted: [postedOn, postedDate, posted, date, createdAt]
+    salary: [salary, salaryRange, ctc]
+    seniority: [experience, experienceRange]
+
+# Shine.com — large general India board (same author/schema family as Foundit).
+shine:
+  actor: "themineworks~shine-jobs-scraper"
+  input:
+    searchKeywords: ["{query}"]
+    location: "{location}"
+    maxJobs: 12
+    includeJobDescription: true
+  fields:
+    title: [title]
+    company: [company]
+    location: [location]
+    url: [apply_url, url, job_url]
+    description: [job_description, jobDescription, description]
+    posted: [posted_date_text, posted_date, date]
+    salary: [salary]
+
+# Glassdoor India.
+glassdoor:
+  actor: "bebity~glassdoor-jobs-scraper"
+  input:
+    keyword: "{query}"
+    location: "{location}"
+    country: "https://www.glassdoor.co.in"
+    matchTitle: "off"
+    maxItems: 12
+    scrapeDetails: true
+  fields:
+    title: [jobTitle, title, positionName]
+    company: [companyName, company, employer]
+    location: [location, jobLocation]
+    url: [jobUrl, url, applyUrl, link]
+    description: [description, descriptionText, jobDescription, descriptionHtml]
+    posted: [postedAt, ageInDays, postedDate, date]
+    salary: [salary, salaryEstimate, payRange]

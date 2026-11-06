@@ -11,12 +11,15 @@ role_type — is this a SENIOR / managerial sales-and-revenue role where she own
   0.7 adjacent senior revenue ownership (account director, senior partnerships,
   strong quota-carrying enterprise account executive at a reputable firm);
   0.4 sales-adjacent with only partial or lower-level ownership;
-  0.1–0.0 roles whose core is REGULAR student/client calling or dialing,
-  tele-sales / telecalling / BPO voice, field detailing/merchandising, a
-  junior/coordinator or individual-contributor desk with no team and no strategic
-  ownership (below her level), OR non-sales roles (pure marketing/brand, product,
-  program/project management, operations-only, HR/recruiting, technical/IC data).
-  A "sales" title does NOT make it senior — judge the day-to-day from the JD.
+  0.1–0.0 (HARD NO — set excluded_role_type) roles whose core is REGULAR
+  student/client calling or dialing, tele-sales / telecalling / BPO voice, ANY
+  physical / field / feet-on-street / door-to-door / retail-floor / territory
+  field sales or merchandising/detailing, a junior/coordinator or individual-
+  contributor desk with no team and no strategic ownership (below her level), OR
+  non-sales roles (pure marketing/brand, product, program/project management,
+  operations-only, HR/recruiting, technical/IC data). A "sales" title does NOT
+  make it senior, and "manager" does not save a feet-on-street field role —
+  judge the actual day-to-day from the JD.
 
 domain — INDUSTRY-AGNOSTIC. Her core is high-end consultative selling, funnel/
   conversion optimisation and leading sales teams; the sector does not matter
@@ -60,9 +63,21 @@ Also set these judgements (booleans):
              false if it is international on-site or "remote" locked to a non-India
              region with no stated India hiring. Company prestige does NOT make a
              role takeable.
-  excluded_role_type — true if role_type is 0 (regular-calling / telecalling-BPO /
-             coordinator / non-sales / no revenue ownership / clearly below her
-             level).
+  excluded_role_type — HARD NO. true if role_type is ~0: regular-calling /
+             telecalling-BPO, ANY physical/field/feet-on-street/door-to-door/
+             retail/territory field sales or detailing, coordinator/junior IC,
+             non-sales, or no revenue ownership.
+  excluded_company — HARD NO. true if the employer is small, unknown, local, a
+             no-brand firm, or a staffing / manpower / placement / recruitment
+             consultancy posting on a client's behalf. She only wants big,
+             reputable, recognisable companies — when in doubt about whether a
+             company is a real recognisable brand, set this true.
+  stretch — true if the LEVEL and BRAND fit but the role needs a sales motion or
+             background she lacks and cannot credibly claim — above all
+             enterprise B2B technology / SaaS / cloud / data-platform / deeply
+             technical sales (she has B2C consultative/edtech selling, not
+             enterprise-tech quota experience). Put the reason in "stretch_reason".
+             These stay visible but must not read as top actionable picks.
   unmet_must_have — true if a stated hard must-have is something she lacks; put it
              in "blocker".
   partial_jd — true if the job description looks truncated or is only a short

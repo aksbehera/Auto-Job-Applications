@@ -268,122 +268,14 @@ search_queries:
 default_location: India
 
 # ---------------------------------------------------------------------------
-# PLATFORMS — same verified Apify actors as the other profile. Sales roles are
-# high-volume on LinkedIn/Naukri/Indeed/Foundit, so Instahyre (tech-skewed) and
-# Glassdoor are off by default. Field maps are platform-generic.
+# PLATFORMS — which shared actors to run (defined in profiles/platforms.yaml).
+# Sales roles are high-volume on these boards; IIMJobs adds senior management/
+# sales-leadership roles, Shine/Glassdoor add breadth. Instahyre (tech-skewed)
+# is left off. Edit the list to add/remove a portal.
 # ---------------------------------------------------------------------------
-platforms:
-  - name: linkedin
-    enabled: true
-    actor: "bebity~linkedin-jobs-scraper"
-    input:
-      titles: ["{query}"]
-      locations: ["{location}"]
-      rows: 12
-      publishedAt: "r604800"
-      companyProfile: false
-    fields:
-      title: [title, jobTitle]
-      company: [companyName, company]
-      location: [location, place]
-      url: [jobUrl, link, url, applyUrl]
-      description: [description, descriptionText, descriptionHtml]
-      posted: [publishedAt, postedAt, postedTime, listedAt, datePosted, postedDate]
-      salary: [salary, salaryInfo]
-      seniority: [seniorityLevel, experienceLevel]
+platforms_enabled: [linkedin, indeed, naukri, foundit, wellfound, shine, iimjobs]
+platform_overrides: {}
 
-  - name: indeed
-    enabled: true
-    actor: "misceres~indeed-scraper"
-    input:
-      position: "{query}"
-      country: IN
-      location: "{location}"
-      maxItemsPerSearch: 12
-      parseCompanyDetails: false
-      saveOnlyUniqueItems: true
-    fields:
-      title: [positionName, title]
-      company: [company, companyName]
-      location: [location]
-      url: [url, externalApplyLink]
-      description: [description, descriptionText]
-      posted: [postingDateParsed, postedAt, date]
-      salary: [salary]
-
-  - name: naukri
-    enabled: true
-    actor: "muhammetakkurtt~naukri-job-scraper"
-    root: jobDetails
-    input:
-      keyword: "{query}"
-      location: "{location}"
-      maxJobs: 50
-      fetchDetails: true
-      freshness: "15"
-      sortBy: "date"
-    fields:
-      title: [title]
-      company: [companyDetail, staticCompanyName]
-      location: [locations, wfhLabel]
-      url: [staticUrl]
-      description: [description]
-      posted: [createdDate]
-      salary: [salaryDetail]
-
-  - name: foundit
-    enabled: true
-    actor: "themineworks~foundit-jobs-scraper"
-    input:
-      searchKeywords: ["{query}"]
-      location: "{location}"
-      postedWithinDays: "15"
-      maxJobs: 12
-      includeJobDescription: true
-    fields:
-      title: [title]
-      company: [company]
-      location: [location]
-      url: [apply_url]
-      description: [job_description, jobDescription, description]
-      posted: [posted_date_text, posted_date, date]
-      salary: [salary]
-
-  - name: wellfound
-    enabled: true
-    actor: "memo23~wellfound-jobs-scraper"
-    input:
-      keyword: "{query}"
-      location: "{location}"
-      maxItems: 12
-      enrichJobDetail: true
-      includeNoSalary: true
-    fields:
-      title: [jobTitle, title, role]
-      company: [companyName, company, startupName]
-      location: [locations, locationTags, jobLocationType, location]
-      url: [jobUrl, applyUrl, url]
-      description: [jobDescription, jobDescriptionSnippet, description]
-      posted: [postedAtUnix, postedAt, datePosted, date]
-      salary: [compensation, salary, salaryRange]
-
-  - name: instahyre
-    enabled: false
-    actor: "getascraper~instahyre-jobs-scraper"
-    input:
-      keywords: ["{query}"]
-      keywordMatch: "any"
-      jobFunctionSlugs: ["sales"]     # confirm the real slug before enabling
-      maxItems: 12
-      includeDetails: true
-    fields:
-      title: [title, candidateTitle]
-      company: [companyName, company]
-      location: [locationsRaw, locations, city]
-      url: [publicUrl, url]
-      description: [description]
-      posted: [postedAt, postedDate, date]
-      salary: [salary]
 
 # No ATS boards for this lane yet (India sales roles concentrate on the job
 # boards above). Add Greenhouse/Lever/Ashby slugs here if useful later.

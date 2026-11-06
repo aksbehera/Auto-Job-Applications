@@ -258,150 +258,15 @@ search_queries:
 default_location: India
 
 # ---------------------------------------------------------------------------
-# PLATFORMS — Apify actors, one entry per board.
-#
-# Only LinkedIn + Indeed are enabled by default: their actors are well-known
-# and their output schemas are covered by the default field map, so they work
-# out of the box. The rest are pre-wired but DISABLED — flip `enabled: true`
-# once you've confirmed the actor id + output fields with:
-#     APIFY_TOKEN=... python scripts/test_apify.py <platform> "AI Product Manager"
-# and, if a field shows up MISSING, extend that platform's `fields` map.
-#
-# `input` is the actor run-input; the strings "{query}" and "{location}" are
-# substituted per search query. `fields` maps our canonical columns to the
-# candidate output keys the parser tries in order (platform-specific keys are
-# merged over the global defaults in discovery.py).
+# PLATFORMS — which shared actors to run (defined in profiles/platforms.yaml).
+# Flip the list to add/remove a job portal. `platform_overrides` tweaks a
+# platform's input for this profile (e.g. Instahyre's job-function slug).
 # ---------------------------------------------------------------------------
-platforms:
-  # LinkedIn — best overall coverage incl. target companies. Cookieless actor.
-  - name: linkedin
-    enabled: true
-    actor: "bebity~linkedin-jobs-scraper"
+platforms_enabled: [linkedin, indeed, naukri, foundit, wellfound, instahyre, iimjobs]
+platform_overrides:
+  instahyre:
     input:
-      titles: ["{query}"]
-      locations: ["{location}"]
-      rows: 12
-      publishedAt: "r604800"        # past 7 days (we run every 2 days)
-      companyProfile: false         # skip company enrichment to limit cost
-    fields:
-      title: [title, jobTitle]
-      company: [companyName, company]
-      location: [location, place]
-      url: [jobUrl, link, url, applyUrl]
-      description: [description, descriptionText, descriptionHtml]
-      posted: [publishedAt, postedAt, postedTime, listedAt, datePosted, postedDate]
-      salary: [salary, salaryInfo]
-      seniority: [seniorityLevel, experienceLevel]
-
-  # Indeed India.
-  - name: indeed
-    enabled: true
-    actor: "misceres~indeed-scraper"
-    input:
-      position: "{query}"
-      country: IN
-      location: "{location}"
-      maxItemsPerSearch: 12
-      parseCompanyDetails: false
-      saveOnlyUniqueItems: true
-    fields:
-      title: [positionName, title]
-      company: [company, companyName]
-      location: [location]
-      url: [url, externalApplyLink]
-      description: [description, descriptionText]
-      posted: [postingDateParsed, postedAt, date]
-      salary: [salary]
-
-  # Naukri — largest India board. fetchDetails pulls the full JD. The actor nests
-  # each job under "jobDetails", so `root` descends into it before field mapping.
-  - name: naukri
-    enabled: true
-    actor: "muhammetakkurtt~naukri-job-scraper"
-    root: jobDetails
-    input:
-      keyword: "{query}"
-      location: "{location}"
-      maxJobs: 50              # this actor enforces a minimum of 50
-      fetchDetails: true
-      freshness: "15"
-      sortBy: "date"
-    fields:
-      title: [title]
-      company: [companyDetail, staticCompanyName]
-      location: [locations, wfhLabel]
-      url: [staticUrl]
-      description: [description]
-      posted: [createdDate]
-      salary: [salaryDetail]
-
-  # Foundit (Monster India). includeJobDescription pulls the full JD.
-  - name: foundit
-    enabled: true
-    actor: "themineworks~foundit-jobs-scraper"
-    input:
-      searchKeywords: ["{query}"]
-      location: "{location}"
-      postedWithinDays: "15"       # allowed: 1,3,7,15,30
-      maxJobs: 12
-      includeJobDescription: true
-    fields:
-      title: [title]
-      company: [company]
-      location: [location]
-      url: [apply_url]
-      description: [job_description, jobDescription, description]
-      posted: [posted_date_text, posted_date, date]
-      salary: [salary]
-
-  # Instahyre (India tech). jobFunctionSlugs cleared so it isn't limited to
-  # backend-development; includeDetails pulls the full JD.
-  - name: instahyre
-    enabled: true
-    actor: "getascraper~instahyre-jobs-scraper"
-    input:
-      keywords: ["{query}"]
-      keywordMatch: "any"
       jobFunctionSlugs: ["product-management"]
-      maxItems: 12
-      includeDetails: true
-    fields:
-      title: [title, candidateTitle]
-      company: [companyName, company]
-      location: [locationsRaw, locations, city]
-      url: [publicUrl, url]
-      description: [description]
-      posted: [postedAt, postedDate, date]
-      salary: [salary]
-
-  # Wellfound (AngelList) — AI-native startups, often global-remote.
-  - name: wellfound
-    enabled: true
-    actor: "memo23~wellfound-jobs-scraper"
-    input:
-      keyword: "{query}"
-      location: "{location}"
-      maxItems: 12
-      enrichJobDetail: true
-      includeNoSalary: true
-    fields:
-      title: [jobTitle, title, role]
-      company: [companyName, company, startupName]
-      location: [locations, locationTags, jobLocationType, location]
-      url: [jobUrl, applyUrl, url]
-      description: [jobDescription, jobDescriptionSnippet, description]
-      posted: [postedAtUnix, postedAt, datePosted, date]
-      salary: [compensation, salary, salaryRange]
-
-  # Glassdoor India — optional, disabled by default (overlaps the others).
-  - name: glassdoor
-    enabled: false
-    actor: "bebity~glassdoor-jobs-scraper"
-    input:
-      keyword: "{query}"
-      location: "{location}"
-      maxItems: 12
-    fields: {}
 
 # ---------------------------------------------------------------------------
 # ATS CAREER PAGES — scraped directly from each provider's public JSON API
